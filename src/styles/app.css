@@ -366,6 +366,15 @@ select {
   background: #9a3412;
 }
 
+.kind-tag.kind-cover {
+  background: #d97706;
+}
+
+.chapter-list li.cover-row {
+  margin-bottom: 6px;
+  border-bottom: 2px solid #f0d9b8;
+}
+
 .icon-button {
   padding: 1px 6px;
   line-height: 1.4;

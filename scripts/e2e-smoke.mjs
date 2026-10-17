@@ -151,14 +151,14 @@ async function main() {
     await cdp.eval(`window.__SNAPSHOT__ = ${JSON.stringify(snapshot(PROJECT_DIR))}; "ok"`);
     await cdp.eval(FAKE_FS);
     await cdp.eval(`document.querySelector("#welcome-open-button").click(); "ok"`);
-    await waitFor(cdp, `!document.querySelector("#editor").hidden && document.querySelectorAll("#chapter-list li").length === 5`);
-    check("sample プロジェクトが開き、章が 5 つ並ぶ", true);
+    await waitFor(cdp, `!document.querySelector("#editor").hidden && document.querySelectorAll("#chapter-list li:not(.cover-row)").length === 5`);
+    check("sample プロジェクトが開き、章が 5 つ並ぶ（先頭に表紙行）", await cdp.eval(`document.querySelector("#chapter-list li.cover-row") !== null`));
     check("プロジェクト名が選択されている", (await cdp.eval(`document.querySelector("#project-select").value`)) === "sample");
     const labels = await cdp.eval(`Array.from(document.querySelectorAll("#chapter-list .group-label")).map((e) => e.textContent)`);
     check("グループに第N章が自動採番される", JSON.stringify(labels) === JSON.stringify(["第1章", "第1章", "第2章", "第2章", "第2章"]), JSON.stringify(labels));
 
     // 2 章目（Markdown）を選んで 3 ペインを確認
-    await cdp.eval(`document.querySelectorAll("#chapter-list .title-button")[1].click(); "ok"`);
+    await cdp.eval(`document.querySelectorAll("#chapter-list li:not(.cover-row) .title-button")[1].click(); "ok"`);
     await waitFor(cdp, `document.querySelector("#current-file").textContent.includes("01-introduction.md")`);
     const sourceText = await cdp.eval(`document.querySelector("#source-editor .cm-content").textContent`);
     check("ソースペインに Markdown が表示される", sourceText.includes("# はじめに"), sourceText.slice(0, 40));
@@ -187,11 +187,11 @@ async function main() {
     check("ソースのスクロールにプレビューが追従する", previewY > 0, `scrollY=${previewY}`);
 
     // 章の挿入（2 章目「はじめに」の直後。各行のボタンは ＋ ↑ ↓ × の 4 つ）→ 番号の振り直し
-    await cdp.eval(`document.querySelectorAll("#chapter-list .row-main .icon-button")[4].click(); "ok"`);
+    await cdp.eval(`document.querySelectorAll("#chapter-list li:not(.cover-row) .row-main .icon-button")[4].click(); "ok"`);
     await waitFor(cdp, `document.querySelector("#insert-dialog").open`);
     await cdp.eval(`(() => { document.querySelector("#insert-file").value = "99-inserted.md"; document.querySelector("#insert-title").value = "挿入した章";
       document.querySelector("#insert-group").value = "新しいグループ"; document.querySelector("#insert-dialog form").requestSubmit(); return "ok"; })()`);
-    await waitFor(cdp, `document.querySelectorAll("#chapter-list li").length === 6`);
+    await waitFor(cdp, `document.querySelectorAll("#chapter-list li:not(.cover-row)").length === 6`);
     const labels2 = await cdp.eval(`Array.from(document.querySelectorAll("#chapter-list .group-label")).map((e) => e.textContent)`);
     check("挿入した章が新しいグループになり、後続の章番号が振り直される", JSON.stringify(labels2) === JSON.stringify(["第1章", "第1章", "第2章", "第3章", "第3章", "第3章"]), JSON.stringify(labels2));
     const inserted = await readFakeText(cdp, "chapters/99-inserted.md");
@@ -202,7 +202,7 @@ async function main() {
 
     // 手順 JSON の章: data-step と同期用の対応
     const stepsIndex = manifest.chapters.findIndex((c) => c.file.endsWith("steps-register.json"));
-    await cdp.eval(`document.querySelectorAll("#chapter-list .title-button")[${stepsIndex}].click(); "ok"`);
+    await cdp.eval(`document.querySelectorAll("#chapter-list li:not(.cover-row) .title-button")[${stepsIndex}].click(); "ok"`);
     await waitFor(cdp, `document.querySelector("#current-file").textContent.includes("steps-register.json")`);
     await cdp.eval(`document.querySelector("#view-html-button").click(); "ok"`);
     await waitFor(cdp, `document.querySelector("#html-editor .cm-content").textContent.includes('data-step="1"')`);
@@ -217,10 +217,35 @@ async function main() {
     const exported = await readFakeText(cdp, `output/${outName.split(",").find((n) => n.endsWith(".html"))}`);
     check("書き出した HTML には data-line が含まれない", !exported.includes("data-line") && exported.includes("第3章"));
 
+    // 表紙デザイン: 表紙行を選び、プレビューの要素をドラッグして cover.json に位置が保存されるか
+    await cdp.eval(`window.manualBuilder.selectCover(); "ok"`);
+    await waitFor(cdp, `document.querySelector("#source-kind").textContent === "表紙デザイン" && document.querySelector("#preview").contentDocument.querySelector('[data-el="title"]') !== null`);
+    check("表紙行を選ぶと cover.json のひな形とドラッグ可能な表紙が出る", await cdp.eval(`window.manualBuilder.sourceText().includes('"elements"')`));
+    const box = await cdp.eval(`(() => { const f = document.querySelector("#preview").getBoundingClientRect(); const el = document.querySelector("#preview").contentDocument.querySelector('[data-el="title"]'); const r = el.getBoundingClientRect(); return { x: f.left + r.left + 20, y: f.top + r.top + 10 }; })()`);
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
+    for (let i = 1; i <= 5; i++) {
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + i * 12, y: box.y + i * 8, button: "left" });
+    }
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + 60, y: box.y + 40, button: "left" });
+    await waitFor(cdp, `document.querySelector("#save-status").textContent === "保存済み" && window.manualBuilder.sourceText().includes('"id": "title"')`, 5000);
+    const coverJson = JSON.parse(await readFakeText(cdp, "cover.json"));
+    const title = coverJson.elements.find((e) => e.id === "title");
+    check("ドラッグした位置が cover.json に保存される", title && title.x > 25 && title.y > 58, `x=${title?.x} y=${title?.y}`);
+    await cdp.eval(`document.querySelector("#export-button").click(); "ok"`);
+    await sleep(800);
+    const exported2 = await readFakeText(cdp, `output/${outName.split(",").find((n) => n.endsWith(".html"))}`);
+    {
+      const shotCover = await cdp.send("Page.captureScreenshot", { format: "png" });
+      const { writeFileSync: wf } = await import("node:fs");
+      wf("output/e2e-cover.png", Buffer.from(shotCover.data, "base64"));
+    }
+    check("書き出した統合版にカスタム表紙が使われ、編集用属性は含まれない", exported2.includes('class="cover cover-page"') && exported2.includes(`left:${title.x}mm`) && !exported2.includes("data-el"));
+
     check("コンソールにエラーが無い", consoleErrors.length === 0, consoleErrors.slice(0, 3).join(" | "));
 
     // 目視確認用に画面を保存する
-    await cdp.eval(`document.querySelectorAll("#chapter-list .title-button")[1].click(); "ok"`);
+    await cdp.eval(`document.querySelectorAll("#chapter-list li:not(.cover-row) .title-button")[1].click(); "ok"`);
     await sleep(600);
     const shot = await cdp.send("Page.captureScreenshot", { format: "png" });
     const { writeFileSync, mkdirSync } = await import("node:fs");

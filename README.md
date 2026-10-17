@@ -15,6 +15,8 @@ Markdown（原稿）・手順 JSON・メニュー定義 JSON・SVG/PNG（図・�
   スクロール位置を同期（Markdown はブロック単位、手順 JSON は手順単位で対応）。編集は自動でファイルに保存。
   IME 変換中はプレビューを更新せず、プレビューは再読込ではなく中身の差し替えで更新する
 - **章の挿入と章番号の振り直し**: 章一覧の任意の位置に挿入・並べ替え。グループ（第N章）は並び順で自動採番
+- **表紙デザイン**: 章一覧の先頭「表紙」で、A4 ページ上の要素（テキスト・画像・帯・収録内容）をプレビュー上でドラッグして配置。
+  位置は mm で `cover.json` に保存され、印刷と一致する。`{title}` `{author}` `{date}` などのプレースホルダが使える
 - **原稿（.md）**: front matter の `title` / `subtitle` が章タイトルとサブタイトル行になる。
   `[[chips:m_tabs:F10, m_option1:F1]]` はボタンの並び（チップ）に、`![説明](図.svg)` / `![説明](画面.png)` は図・画像の埋め込みになる。
   クラス付き `div` の生 HTML（フロー図・出典行）も通る
@@ -52,6 +54,7 @@ npm run dev        # 開発サーバを起動（表示された URL を Chrome /
 2. プロジェクトを選ぶ（`sample` が入っています）か、「新規プロジェクト」で作る
 3. 左の章一覧から章をクリックすると、ソース・HTML・プレビューの 3 ペインに表示される。ソースを編集すると自動保存され、プレビューが更新される
 4. 「＋」で章を挿入、↑↓ で並べ替え、グループ名を入れると「第N章」が並び順で振られる（マニュアル情報の「自動採番」）
+   - 章一覧の先頭「表紙」をクリックすると表紙デザイン。要素をドラッグで移動、右下のつまみで幅変更、「＋」で画像・テキスト・帯を追加、要素を選んで Delete で削除。色や文字サイズはソース（cover.json）で編集
 5. 素材（.md / .json / .png / .svg / .txt）はドロップゾーンに落とすとプロジェクトフォルダに保存される
 6. 「HTML を書き出す」で `output/` に保存、「印刷 / PDF」でブラウザの印刷ダイアログ
 
@@ -72,6 +75,7 @@ node .cli/build-cli.js projects/sample/manual.json out.html
 | `title` / `subtitle` / `author` / `version` / `revisedOn` / `coverNotes[]` / `book` | マニュアル情報。`book: true` で統合版 |
 | `autoNumberGroups` | グループ名に「第N章 」を並び順で自動付与 |
 | `catalog` / `menuTree` | メニュー定義 JSON とツリー表示テキストのパス（manual.json からの相対） |
+| `cover` | 表紙デザイン JSON のパス（既定 `cover.json`。無ければ従来の表紙） |
 | `catalogMeta` | カタログ章の `title` / `sub` / `intro` / `pending[]` / `pendingNote` |
 | `menus.<id>` | メニューごとの `heading` / `intro` の上書き |
 | `images[]` | 画像（PNG・SVG）を再帰的に読むフォルダ（既定 `images`） |
@@ -124,7 +128,8 @@ manual-builder/
 │   │   ├── steps.ts        ← 手順 JSON → HTML
 │   │   ├── catalog-page.ts ← メニュー定義 → 「メニュー構成とアイコン一覧」章
 │   │   ├── manual.ts       ← 章の変換・図と画像の差し込み・チップ差し替え・見出し ID
-│   │   ├── export.ts       ← 単体／統合版／章プレビューの HTML 組み立て
+│   │   ├── cover.ts        ← 表紙デザイン（cover.json）→ HTML
+│   │   ├── export.ts       ← 単体／統合版／章プレビュー／表紙プレビューの HTML 組み立て
 │   │   ├── svg.ts          ← SVG のサニタイズ
 │   │   └── html.ts         ← エスケープなどの共通処理
 │   └── styles/
@@ -146,3 +151,4 @@ manual-builder/
 - [ADR 0001: ブラウザ単体アプリで組み立て、単一 HTML を出力する](docs/adr/0001-browser-app-single-html-output.md)
 - [ADR 0002: 素材を 3 種類に分け、操作経路は参照名で解決する](docs/adr/0002-source-kinds-and-chip-references.md)
 - [ADR 0003: 素材はプロジェクトフォルダに保存し、ブラウザから直接読み書きする](docs/adr/0003-project-folder-and-three-pane-editor.md)
+- [ADR 0004: 表紙は mm 座標の要素リストで持ち、プレビュー上で直接動かす](docs/adr/0004-cover-design-elements.md)

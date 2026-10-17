@@ -24,14 +24,14 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
 
 | Path | Role | Rule |
 |---|---|---|
-| `src/core/` | Assembly logic: project (manifest → Manual, group numbering), types, markdown, catalog (refs → chips), steps, catalog-page, manual (inlining, chips, line markers, heading ids), export | **Must not touch `document`, `window` globals or the UI.** `DOMParser` is allowed; DOMPurify is obtained via `purifier()`. File access only through the `ProjectFiles` interface. |
+| `src/core/` | Assembly logic: project (manifest → Manual, group numbering), types, markdown, catalog (refs → chips), steps, catalog-page, cover (cover.json → cover page), manual (inlining, chips, line markers, heading ids), export | **Must not touch `document`, `window` globals or the UI.** `DOMParser` is allowed; DOMPurify is obtained via `purifier()`. File access only through the `ProjectFiles` interface. |
 | `src/main.ts` | UI: project selection, chapter list (insert / reorder / groups), code pane (source / HTML tabs) + preview, import into the project folder, export, print. Rebuild and autosave are deferred while `view.composing` (IME); the preview iframe is updated in place (`updatePreview`), never reloaded after the first load | Only place that reads DOM elements by id. Exposes `window.manualBuilder` (tiny hook for the e2e test) |
 | `src/project-store.ts` | File System Access API: root handle, project listing/creation, `ProjectDir` (cached `ProjectFiles` + writes) | Browser only |
 | `src/editor-panes.ts` / `src/scroll-sync.ts` | CodeMirror wrapper; line-based scroll sync between panes | `interpolate()` is unit-tested |
 | `src/storage.ts` | Settings (root handle) in IndexedDB | Browser only |
 | `scripts/build-cli.ts` | CLI: `manual.json` → HTML, using `src/core/` | Node only; installs jsdom globals before rendering |
 | `src/styles/manual.css` | Embedded in the exported manual (screen + print, A4) | Imported via `?raw`; self-contained (no `@import`, no URLs). Based on `input/styles/manual.css` |
-| `projects/` | Save folder. `projects/sample/` is the committed generic sample; everything else is git-ignored (confidential) | Project layout: `manual.json`, `chapters/`, `images/`, `catalog/`, `output/` (`PROJECT_LAYOUT`) |
+| `projects/` | Save folder. `projects/sample/` is the committed generic sample; everything else is git-ignored (confidential) | Project layout: `manual.json`, `cover.json` (optional), `chapters/`, `images/`, `catalog/`, `output/` (`PROJECT_LAYOUT`) |
 | `input/` | User-provided originals (not committed, read-only) | Never edit. Real materials are copied (not moved) into a git-ignored project under `projects/` |
 | `output/` | Temporary generated files (not committed) | Distributed manuals go to `archive/dist/` per Tier 1 |
 
@@ -51,6 +51,8 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
   → placeholder replaced after sanitizing; `normalizeStrong()` makes `**…」**に` bold; `breaks: true`.
 - Source map for the editor: `renderChapter(…, { sourceMap: true })` emits `data-line` (Markdown blocks, source
   line numbers including front matter offset) and `data-step` (steps). Exports never include them.
+- Cover: `cover.json` (`CoverDesign`, elements in **mm** on an A4 page) rendered by `renderCover()`; missing file → `defaultCoverDesign()`.
+  Editable preview adds `data-el`; drag/resize handlers live in `main.ts` (`enableCoverEditing`) and write back through `commitCoverDesign()`. Exports never contain `data-el`.
 - Heading ids are `c{chapter}-{n}`, chapter anchors `d{n}`.
 - Everything that ends up in the exported HTML goes through DOMPurify first. Never concatenate raw user input.
 - Errors: core functions log with `[functionName]` prefix and rethrow; `main.ts` turns them into message-list

@@ -11,7 +11,8 @@ import {
 } from "./core/project";
 import { chapterTitle, isStepsData, type Chapter } from "./core/types";
 import { isMenuCatalog } from "./core/catalog";
-import { buildChapterHtml, buildManualHtml } from "./core/export";
+import { buildChapterHtml, buildCoverHtml, buildManualHtml } from "./core/export";
+import { COVER_PAGE, coverTemplate, defaultCoverDesign, isCoverDesign, newCoverElement, type CoverDesign, type CoverElement, type CoverElementType } from "./core/cover";
 import { stripBom } from "./core/markdown";
 import { PaneEditor, type EditorLanguage } from "./editor-panes";
 import { ScrollSync, type SyncAnchor } from "./scroll-sync";
@@ -43,6 +44,8 @@ let project: ProjectDir | undefined;
 let manifest: Manifest | undefined;
 let assembled: AssembleResult | undefined;
 let currentIndex = -1;
+/** true: 章ではなく表紙デザインを編集中 */
+let coverSelected = false;
 /** 編集中で未保存のファイル */
 const pendingWrites = new Map<string, string>();
 let manifestDirty = false;
@@ -111,6 +114,13 @@ const ui = {
   insertTitle: byId<HTMLInputElement>("insert-title"),
   insertGroup: byId<HTMLInputElement>("insert-group"),
   insertCancel: byId<HTMLButtonElement>("insert-cancel"),
+  coverDialog: byId<HTMLDialogElement>("cover-dialog"),
+  coverElType: byId<HTMLSelectElement>("cover-el-type"),
+  coverElImageField: byId<HTMLElement>("cover-el-image-field"),
+  coverElImage: byId<HTMLSelectElement>("cover-el-image"),
+  coverElTextField: byId<HTMLElement>("cover-el-text-field"),
+  coverElText: byId<HTMLInputElement>("cover-el-text"),
+  coverCancel: byId<HTMLButtonElement>("cover-cancel"),
   projectDialog: byId<HTMLDialogElement>("project-dialog"),
   projectFolder: byId<HTMLInputElement>("project-folder"),
   projectTitle: byId<HTMLInputElement>("project-title"),
@@ -164,7 +174,13 @@ const htmlEditor = new PaneEditor(ui.htmlEditorHost, {
 const sync = new ScrollSync(sourceEditor, htmlEditor, ui.preview);
 
 function currentChapterPath(): string | undefined {
-  if (!manifest || currentIndex < 0) {
+  if (!manifest) {
+    return undefined;
+  }
+  if (coverSelected) {
+    return assembled?.coverPath ?? manifest.cover ?? PROJECT_LAYOUT.cover;
+  }
+  if (currentIndex < 0) {
     return undefined;
   }
   const entry = manifest.chapters[currentIndex];
@@ -190,6 +206,15 @@ function languageFor(path: string | undefined): EditorLanguage {
 
 async function showChapterInEditor(): Promise<void> {
   const path = currentChapterPath();
+  if (coverSelected && project && path && assembled) {
+    ui.currentFile.textContent = `${project.name}/${path}`;
+    sourceEditor.setReadOnly(false);
+    sourceEditor.setLanguage("json");
+    ui.sourceKind.textContent = "表紙デザイン";
+    // cover.json がまだ無ければ既定デザインをひな形として出す（編集・ドラッグした時点で保存される）
+    sourceEditor.setText(assembled.coverText ?? coverTemplate(assembled.manual));
+    return;
+  }
   const entry = manifest?.chapters[currentIndex];
   ui.currentFile.textContent = path ? `${project?.name ?? ""}/${path}` : "";
   if (!project || !path || !entry) {
@@ -305,6 +330,14 @@ function renderOutput(): void {
   }
   try {
     const manual = assembled.manual;
+    if (coverSelected) {
+      sync.beginContentUpdate();
+      const { html, chapterHtml } = buildCoverHtml(manual, { css: manualCss });
+      setHtmlViewText(chapterHtml ?? "");
+      sync.setAnchors([]);
+      updatePreview(html);
+      return;
+    }
     const chapter = manual.chapters[currentIndex];
     if (!chapter) {
       updatePreview("");
@@ -379,9 +412,242 @@ function updatePreview(html: string): void {
     doc.body.className = parsed.body.className;
     doc.body.innerHTML = parsed.body.innerHTML;
     sync.syncFromSourceNow();
+    enableCoverEditing();
     return;
   }
   ui.preview.srcdoc = html;
+}
+
+// ---- 表紙のドラッグ編集 -------------------------------------------------------------
+
+const COVER_EDIT_STYLE_ID = "mb-cover-edit-style";
+const COVER_EDIT_CSS = `
+body.book { padding: 0 !important; max-width: none !important; background: #e5e7eb; }
+[data-mb-cover] { margin: 8px auto !important; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25); }
+[data-mb-cover] [data-el] { cursor: move; outline: 1px dashed rgba(217, 119, 6, 0.55); outline-offset: 1px; }
+[data-mb-cover] [data-el]:hover { outline-color: #d97706; }
+[data-mb-cover] [data-el].mb-selected { outline: 2px solid #d97706; }
+[data-mb-cover] .mb-handle { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: #d97706; border: 1px solid #fff; border-radius: 2px; cursor: nwse-resize; z-index: 1000; }
+[data-mb-cover] .mb-dragging { opacity: 0.85; }
+`;
+/** 位置・幅を丸める単位（mm） */
+const COVER_SNAP_MM = 0.5;
+let selectedCoverElementId: string | undefined;
+
+/** いまのソース（cover.json）を表紙デザインとして読む。壊れていれば組み立て済みのもの、無ければ既定 */
+function currentCoverDesign(): CoverDesign {
+  if (!assembled) {
+    return { elements: [] };
+  }
+  try {
+    const value: unknown = JSON.parse(sourceEditor.getText());
+    if (isCoverDesign(value)) {
+      return value;
+    }
+  } catch {
+    // ソースが編集途中で JSON として読めない
+  }
+  return assembled.manual.cover ?? defaultCoverDesign(assembled.manual);
+}
+
+/** 表紙デザインをソース（cover.json）に書き戻し、保存と再描画を予約する */
+function commitCoverDesign(design: CoverDesign): void {
+  const text = `${JSON.stringify(design, null, 2)}\n`;
+  sourceEditor.setText(text);
+  onSourceChanged(text);
+}
+
+function snap(value: number): number {
+  return Math.round(value / COVER_SNAP_MM) * COVER_SNAP_MM;
+}
+
+/** プレビュー内の表紙要素にドラッグ（移動）とつまみ（幅の変更）を付ける */
+function enableCoverEditing(): void {
+  const doc = ui.preview.contentDocument;
+  const page = doc?.querySelector<HTMLElement>("[data-mb-cover]");
+  if (!doc || !page) {
+    return;
+  }
+  if (!doc.getElementById(COVER_EDIT_STYLE_ID)) {
+    const style = doc.createElement("style");
+    style.id = COVER_EDIT_STYLE_ID;
+    style.textContent = COVER_EDIT_CSS;
+    doc.head.appendChild(style);
+  }
+  // ページ（210mm）がペインより広ければ縮小して全体を見せる。zoom はレイアウトに効くので座標変換はそのまま使える
+  const available = doc.documentElement.clientWidth - 16;
+  const natural = page.offsetWidth;
+  if (natural > available && available > 100) {
+    page.style.zoom = String(available / natural);
+  }
+  const pxPerMm = () => page.getBoundingClientRect().width / COVER_PAGE.width;
+
+  page.querySelectorAll<HTMLElement>("[data-el]").forEach((el) => {
+    const id = el.getAttribute("data-el") ?? "";
+    if (id === selectedCoverElementId) {
+      el.classList.add("mb-selected");
+    }
+    const handle = doc.createElement("div");
+    handle.className = "mb-handle";
+    el.appendChild(handle);
+
+    const startInteraction = (event: MouseEvent, mode: "move" | "resize") => {
+      event.preventDefault();
+      event.stopPropagation();
+      selectCoverElement(id);
+      const design = currentCoverDesign();
+      const target = design.elements.find((e) => e.id === id);
+      if (!target) {
+        return;
+      }
+      const scale = pxPerMm();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const origin: CoverElement = { ...target };
+      const rect = el.getBoundingClientRect();
+      const originW = target.w ?? rect.width / scale;
+      const originH = target.h;
+      el.classList.add("mb-dragging");
+      let moved = false;
+
+      const onMove = (e: MouseEvent) => {
+        const dx = (e.clientX - startX) / scale;
+        const dy = (e.clientY - startY) / scale;
+        moved = true;
+        if (mode === "move") {
+          const w = target.w ?? rect.width / scale;
+          const x = Math.min(Math.max(0, origin.x + dx), COVER_PAGE.width - Math.min(w, COVER_PAGE.width));
+          const y = Math.min(Math.max(0, origin.y + dy), COVER_PAGE.height - 2);
+          el.style.left = `${x}mm`;
+          el.style.top = `${y}mm`;
+          target.x = snap(x);
+          target.y = snap(y);
+        } else {
+          const w = Math.max(5, Math.min(originW + dx, COVER_PAGE.width - origin.x));
+          el.style.width = `${w}mm`;
+          target.w = snap(w);
+          if (originH !== undefined) {
+            const h = Math.max(2, originH + dy);
+            el.style.height = `${h}mm`;
+            target.h = snap(h);
+          }
+        }
+      };
+      const onUp = () => {
+        doc.removeEventListener("mousemove", onMove);
+        doc.removeEventListener("mouseup", onUp);
+        el.classList.remove("mb-dragging");
+        if (moved) {
+          commitCoverDesign(design);
+        }
+      };
+      doc.addEventListener("mousemove", onMove);
+      doc.addEventListener("mouseup", onUp);
+    };
+
+    el.addEventListener("mousedown", (event) => startInteraction(event, "move"));
+    handle.addEventListener("mousedown", (event) => startInteraction(event, "resize"));
+  });
+
+  doc.addEventListener("keydown", (event) => {
+    if ((event.key === "Delete" || event.key === "Backspace") && selectedCoverElementId) {
+      event.preventDefault();
+      removeCoverElement(selectedCoverElementId);
+    }
+  });
+  // 空白をクリックしたら選択解除
+  page.addEventListener("mousedown", (event) => {
+    if (event.target === page) {
+      selectCoverElement(undefined);
+    }
+  });
+}
+
+function selectCoverElement(id: string | undefined): void {
+  selectedCoverElementId = id;
+  const doc = ui.preview.contentDocument;
+  doc?.querySelectorAll<HTMLElement>("[data-el]").forEach((el) => {
+    el.classList.toggle("mb-selected", el.getAttribute("data-el") === id);
+  });
+  if (id) {
+    doc?.body.focus();
+    ui.preview.focus();
+  }
+}
+
+function addCoverElement(type: CoverElementType, text: string, src?: string): void {
+  const design = currentCoverDesign();
+  const used = new Set(design.elements.map((e) => e.id));
+  let n = design.elements.length + 1;
+  while (used.has(`${type}${n}`)) {
+    n += 1;
+  }
+  const element = newCoverElement(type, `${type}${n}`, src);
+  if (type === "text" && text.trim()) {
+    element.text = text;
+  }
+  design.elements.push(element);
+  selectedCoverElementId = element.id;
+  commitCoverDesign(design);
+  logMessage(`表紙に要素を追加しました: ${element.id}`);
+}
+
+function removeCoverElement(id: string): void {
+  const design = currentCoverDesign();
+  const index = design.elements.findIndex((e) => e.id === id);
+  if (index < 0) {
+    return;
+  }
+  design.elements.splice(index, 1);
+  selectedCoverElementId = undefined;
+  commitCoverDesign(design);
+  logMessage(`表紙の要素を削除しました: ${id}`);
+}
+
+async function selectCover(): Promise<void> {
+  if (!manifest) {
+    return;
+  }
+  coverSelected = true;
+  renderChapterList();
+  await showChapterInEditor();
+  renderOutput();
+}
+
+function openCoverDialog(): void {
+  if (!assembled) {
+    return;
+  }
+  ui.coverElType.value = "text";
+  ui.coverElText.value = "テキスト";
+  const names = [...assembled.manual.images.map((img) => img.name), ...assembled.manual.figures.map((f) => f.name)].sort((a, b) =>
+    a.localeCompare(b, "ja"),
+  );
+  ui.coverElImage.replaceChildren(
+    ...names.map((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      return option;
+    }),
+  );
+  updateCoverDialogFields();
+  ui.coverDialog.showModal();
+}
+
+function updateCoverDialogFields(): void {
+  const type = ui.coverElType.value;
+  ui.coverElImageField.hidden = type !== "image";
+  ui.coverElTextField.hidden = type !== "text";
+}
+
+function submitCoverElement(): void {
+  const type = ui.coverElType.value as CoverElementType;
+  if (type === "image" && !ui.coverElImage.value) {
+    logMessage("追加できる画像がありません。先に images/ に PNG か SVG を入れてください", "warn");
+    return;
+  }
+  addCoverElement(type, ui.coverElText.value, type === "image" ? ui.coverElImage.value : undefined);
 }
 
 /** 出力 HTML の data-line / data-step とソース行の対応表を作る */
@@ -419,6 +685,7 @@ ui.preview.addEventListener("load", () => {
     win.addEventListener("scroll", () => sync.fromPreview(), { passive: true });
     sync.rebuildHtmlSegments();
     sync.syncFromSourceNow();
+    enableCoverEditing();
   }
 });
 
@@ -457,11 +724,47 @@ function renderChapterList(): void {
     }),
   );
 
+  const coverRow: HTMLLIElement[] = [];
+  if (manifest.book) {
+    const item = document.createElement("li");
+    item.className = `cover-row${coverSelected ? " selected" : ""}`;
+    const main = document.createElement("div");
+    main.className = "row-main";
+    const tag = document.createElement("span");
+    tag.className = "kind-tag kind-cover";
+    tag.textContent = "表紙";
+    const titleButton = document.createElement("button");
+    titleButton.type = "button";
+    titleButton.className = "title-button";
+    titleButton.textContent = assembled?.coverText ? "表紙デザイン（cover.json）" : "表紙デザイン（既定）";
+    titleButton.title = "クリックすると表紙をプレビュー上でドラッグ編集できます";
+    titleButton.addEventListener("click", () => void selectCover());
+    main.append(
+      tag,
+      titleButton,
+      createButton("＋", "表紙に要素（画像・テキスト・帯）を追加", () => {
+        void selectCover().then(openCoverDialog);
+      }),
+      createButton("×", "選択中の要素を削除（プレビューで要素をクリックして選択）", () => {
+        if (selectedCoverElementId) {
+          removeCoverElement(selectedCoverElementId);
+        } else {
+          logMessage("削除する要素をプレビューでクリックして選んでください", "warn");
+        }
+      }),
+    );
+    item.append(main);
+    coverRow.push(item);
+  } else if (coverSelected) {
+    coverSelected = false;
+  }
+
   ui.chapterList.replaceChildren(
+    ...coverRow,
     ...entries.map((entry, index) => {
       const chapter = assembled?.chapters[index]?.chapter;
       const item = document.createElement("li");
-      if (index === currentIndex) {
+      if (index === currentIndex && !coverSelected) {
         item.classList.add("selected");
       }
       if (index === 0 || labels[index] !== labels[index - 1]) {
@@ -539,6 +842,7 @@ async function selectChapter(index: number): Promise<void> {
     return;
   }
   currentIndex = index;
+  coverSelected = false;
   renderChapterList();
   await showChapterInEditor();
   renderOutput();
@@ -1057,6 +1361,9 @@ function setupEvents(): void {
   ui.insertKind.addEventListener("change", updateInsertFields);
   ui.insertCancel.addEventListener("click", () => ui.insertDialog.close());
   ui.insertDialog.querySelector("form")?.addEventListener("submit", () => void submitInsert());
+  ui.coverElType.addEventListener("change", updateCoverDialogFields);
+  ui.coverCancel.addEventListener("click", () => ui.coverDialog.close());
+  ui.coverDialog.querySelector("form")?.addEventListener("submit", submitCoverElement);
 
   ui.fileInput.addEventListener("change", () => {
     if (ui.fileInput.files && ui.fileInput.files.length > 0) {
@@ -1117,6 +1424,7 @@ declare global {
       appendSource(text: string): void;
       scrollSourceToEnd(): void;
       sourceText(): string;
+      selectCover(): Promise<void>;
     };
   }
 }
@@ -1132,6 +1440,7 @@ window.manualBuilder = {
     el.dispatchEvent(new Event("scroll"));
   },
   sourceText: () => sourceEditor.getText(),
+  selectCover,
 };
 
 start().catch((error: Error) => {

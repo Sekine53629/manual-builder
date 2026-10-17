@@ -2,6 +2,7 @@
 import { chapterTitle, type Manual } from "./types";
 import { renderChapter, renderManual, type RenderedChapter, type TocEntry } from "./manual";
 import { computeGroupLabels, stripGroupNumber } from "./project";
+import { renderCover } from "./cover";
 import { escapeHtml, joinHtml } from "./html";
 
 export { escapeHtml } from "./html";
@@ -132,7 +133,7 @@ function buildBookBody(manual: Manual, rendered: RenderedChapter[]): string {
   const groups = groupChapters(rendered, manual.autoNumberGroups);
   const labels = groupLabels(manual, rendered);
   return [
-    buildCover(manual, groups),
+    buildCover(manual),
     buildBookToc(groups),
     '<main class="manual-body">',
     joinHtml(rendered, (r) => buildArticle(r, labels.get(r) ?? "")),
@@ -140,43 +141,19 @@ function buildBookBody(manual: Manual, rendered: RenderedChapter[]): string {
   ].join("\n");
 }
 
-function formatJapaneseDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return m ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : iso;
+function buildCover(manual: Manual): string {
+  return renderCover(manual, manual.cover);
 }
 
-function buildCover(manual: Manual, groups: ChapterGroup[]): string {
-  const total = groups.reduce((n, g) => n + g.chapters.length, 0);
-  const metaParts: string[] = [];
-  if (manual.author) {
-    metaParts.push(`作成：${escapeHtml(manual.author)}`);
+/** エディタ用: 表紙だけを HTML にする（要素に data-el を付け、ドラッグできるようにする） */
+export function buildCoverHtml(manual: Manual, options: ExportOptions): ExportResult {
+  try {
+    const html = renderCover(manual, manual.cover, { editable: true });
+    return { html: wrapDocument(escapeHtml(manual.title), options.css, "book", html), warnings: [], chapterHtml: html };
+  } catch (error) {
+    console.error("[buildCoverHtml] 表紙プレビューの生成に失敗しました:", error);
+    throw error;
   }
-  metaParts.push(formatJapaneseDate(manual.revisedOn));
-  if (manual.version) {
-    metaParts.push(`版 ${escapeHtml(manual.version)}`);
-  }
-  const notes = joinHtml(
-    manual.coverNotes.filter((n) => n.trim()),
-    (n) => `<p class="cover-note">${escapeHtml(n)}</p>`,
-  );
-  const contents = joinHtml(groups, (g) => {
-    const label = g.label || "（未分類）";
-    return `<li>${escapeHtml(label)}（${g.chapters.length}本）</li>`;
-  });
-  return [
-    '<section class="cover">',
-    '<div class="cover-band">',
-    `<h1 class="cover-title">${escapeHtml(manual.title)}</h1>`,
-    manual.subtitle ? `<p class="cover-sub">${escapeHtml(manual.subtitle)}</p>` : "",
-    "</div>",
-    `<p class="cover-meta">${metaParts.join("　／　")}</p>`,
-    notes,
-    `<h3 class="cover-contents">収録内容（${total}本）</h3>`,
-    `<ul class="cover-list">${contents}</ul>`,
-    "</section>",
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
 }
 
 function buildBookToc(groups: ChapterGroup[]): string {

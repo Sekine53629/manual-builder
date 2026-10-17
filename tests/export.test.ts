@@ -124,10 +124,11 @@ describe("buildManualHtml（統合版）", () => {
     manual.chapters[1].group = "第1章 基本";
     const { html } = buildManualHtml(manual, { css: "" });
     expect(html).toContain('<body class="book">');
-    expect(html).toContain('<h1 class="cover-title">テスト&lt;マニュアル&gt;</h1>');
-    expect(html).toContain('<p class="cover-sub">統合版</p>');
+    expect(html).toContain('<section class="cover cover-page">');
+    expect(html).toContain("テスト&lt;マニュアル&gt;</div>");
+    expect(html).toContain("統合版</div>");
     expect(html).toContain("作成：作成者　／　2026年10月17日　／　版 1.0");
-    expect(html).toContain('<p class="cover-note">目次をクリックすると移動できます</p>');
+    expect(html).toContain("<p>目次をクリックすると移動できます</p>");
     expect(html).toContain("収録内容（2本）");
     expect(html).toContain("<li>第1章 基本（2本）</li>");
     expect(html).toContain('<div class="toc-group"><a href="#d1">第1章 基本</a></div>');

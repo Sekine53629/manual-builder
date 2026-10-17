@@ -141,6 +141,28 @@
     </form>
   </dialog>
 
+  <dialog id="cover-dialog">
+    <form method="dialog" class="dialog-form">
+      <h3>表紙に要素を追加</h3>
+      <label class="field"><span>種類</span>
+        <select id="cover-el-type">
+          <option value="text">テキスト</option>
+          <option value="image">画像（images/ から）</option>
+          <option value="rect">帯（色付きの矩形）</option>
+          <option value="contents">収録内容の一覧</option>
+          <option value="notes">表紙の補足</option>
+        </select>
+      </label>
+      <label class="field" id="cover-el-image-field" hidden><span>画像</span><select id="cover-el-image"></select></label>
+      <label class="field" id="cover-el-text-field"><span>テキスト（{title} {subtitle} {author} {date} {version} {count} が使えます）</span><input id="cover-el-text" type="text" value="テキスト"></label>
+      <p class="hint">追加した要素はプレビュー上でドラッグして位置を、右下のつまみで幅を変えられます。色や文字サイズはソース（cover.json）で編集します。</p>
+      <div class="dialog-actions">
+        <button type="button" id="cover-cancel">キャンセル</button>
+        <button type="submit" class="primary">追加</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="project-dialog">
     <form method="dialog" class="dialog-form">
       <h3>新規プロジェクト</h3>

@@ -1,5 +1,6 @@
 // マニュアルのデータモデル
 import type { MenuCatalog } from "./catalog";
+import type { CoverDesign } from "./cover";
 
 /** 章の種類。1 つの取り込みファイル = 1 章 */
 export type ChapterKind = "markdown" | "steps" | "catalog";
@@ -104,6 +105,8 @@ export interface Manual {
   catalog?: MenuCatalog;
   /** メニュー構成のツリー表示テキスト（カタログ章の第 1 節） */
   menuTree?: string;
+  /** 表紙デザイン（統合版）。無ければ既定デザイン */
+  cover?: CoverDesign;
 }
 
 export function createEmptyManual(title: string): Manual {

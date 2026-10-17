@@ -5,10 +5,12 @@ import { extractTitle, stripBom } from "./markdown";
 import { sanitizeSvg } from "./svg";
 import { isMenuCatalog, type MenuCatalog } from "./catalog";
 import { DEFAULT_CATALOG_TITLE } from "./catalog-page";
+import { isCoverDesign } from "./cover";
 
 /** プロジェクトフォルダの標準構成 */
 export const PROJECT_LAYOUT = {
   manifest: "manual.json",
+  cover: "cover.json",
   chapters: "chapters",
   images: "images",
   catalog: "catalog",
@@ -40,6 +42,8 @@ export interface Manifest {
   autoNumberGroups?: boolean;
   catalog?: string;
   menuTree?: string;
+  /** 表紙デザイン（cover.json）のパス。省略時は cover.json、無ければ既定デザイン */
+  cover?: string;
   /** catalog.meta に上書きする値 */
   catalogMeta?: MenuCatalog["meta"];
   /** メニュー ID ごとの heading / intro の上書き */
@@ -75,6 +79,9 @@ export interface AssembleResult {
   chapters: AssembledChapter[];
   /** 読み込み時の警告（ファイルが無い、形式が違うなど） */
   warnings: string[];
+  /** 表紙デザインのファイルパスと内容（ファイルが無ければ内容は undefined） */
+  coverPath: string;
+  coverText?: string;
 }
 
 const IMAGE_MIME: Record<string, string> = {
@@ -201,6 +208,23 @@ export async function assembleManual(manifest: Manifest, files: ProjectFiles): P
       }
     }
 
+    const coverPath = manifest.cover ?? PROJECT_LAYOUT.cover;
+    let coverText: string | undefined;
+    try {
+      coverText = stripBom(await files.readText(coverPath));
+      const value: unknown = JSON.parse(coverText);
+      if (isCoverDesign(value)) {
+        manual.cover = value;
+      } else {
+        warnings.push(`${coverPath}: 表紙デザイン（elements[]）の形式ではありません`);
+      }
+    } catch (error) {
+      if (coverText !== undefined) {
+        // ファイルはあるが JSON として読めない（編集途中など）。既定デザインで続ける
+        warnings.push(`${coverPath}: ${(error as Error).message}`);
+      }
+    }
+
     const imageDirs = manifest.images ?? [PROJECT_LAYOUT.images];
     const figureDirs = manifest.figures ?? imageDirs;
     for (const dir of imageDirs) {
@@ -247,7 +271,7 @@ export async function assembleManual(manifest: Manifest, files: ProjectFiles): P
       }
     }
     manual.chapters = chapters.map((c) => c.chapter);
-    return { manual, chapters, warnings };
+    return { manual, chapters, warnings, coverPath, coverText };
   } catch (error) {
     console.error("[assembleManual] プロジェクトの組み立てに失敗しました:", error);
     throw error;

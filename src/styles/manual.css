@@ -536,46 +536,67 @@ figure.shot img {
 }
 
 /* ---- 統合版: 表紙・目次・章バッジ ---------------------------------------- */
-.cover {
-  min-height: 240mm;
+/* 表紙は A4 1 ページ（210mm × 297mm）の上に要素を mm 座標で置く。印刷では余白 0 の名前付きページにする */
+.cover-page {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  margin: -16mm -15mm 10mm;
+  overflow: hidden;
+  background: #fff;
+  page: cover;
+  box-sizing: border-box;
 }
 
-.cover-band {
-  background: var(--accent);
-  color: #fff;
-  padding: 44mm 10mm 12mm;
-  margin: 0 0 14mm;
-  border-radius: 2px;
-}
-
-.cover-title {
-  color: #fff;
-  font-size: 24pt;
-  border: none;
-  margin: 0 0 8px;
-  padding: 0;
-}
-
-.cover-sub {
+@page cover {
+  size: A4;
   margin: 0;
-  font-size: 12pt;
-  color: #fff;
 }
 
-.cover-meta,
-.cover-note {
-  margin: 0 0 6px;
-  font-size: 10pt;
+.cover-el {
+  position: absolute;
+  box-sizing: border-box;
+  line-height: 1.6;
+}
+
+.cover-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cover-image img,
+.cover-image svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cover-image[style*="height"] img {
+  height: 100%;
+  object-fit: contain;
+}
+
+.cover-missing {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px dashed #b91c1c;
+  color: #b91c1c;
+  font-size: 8pt;
+}
+
+.cover-notes p {
+  margin: 0 0 4px;
 }
 
 .cover-contents {
-  margin: 18px 0 6px;
+  margin: 0 0 6px;
   color: var(--text);
-  font-size: 11pt;
+  font-size: 1em;
 }
 
 .cover-list {
   margin: 0;
+  padding-left: 1.6em;
 }
 
 .cover-list li {
@@ -671,8 +692,8 @@ nav.toc a:hover {
     max-width: none;
   }
 
-  .cover {
-    min-height: 0;
+  .cover-page {
+    margin: 0;
     break-after: page;
   }
 
