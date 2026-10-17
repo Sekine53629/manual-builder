@@ -49,6 +49,12 @@ let currentIndex = -1;
 let coverSelected = false;
 /** 編集中で未保存のファイル */
 const pendingWrites = new Map<string, string>();
+/**
+ * いまソースエディタに表示している内容が属するファイル。
+ * 章を切り替えるときは、新しい内容を setText した瞬間に更新する。
+ * （切り替え中に IME の確定などで遅れて届いた変更を、切り替え後の章に保存してしまわないため）
+ */
+let editingPath: string | undefined;
 let manifestDirty = false;
 
 function byId<T extends HTMLElement>(id: string): T {
@@ -231,12 +237,14 @@ async function showChapterInEditor(): Promise<void> {
     ui.formatToolbar.hidden = true;
     // cover.json がまだ無ければ既定デザインをひな形として出す（編集・ドラッグした時点で保存される）
     sourceEditor.setText(assembled.coverText ?? coverTemplate(assembled.manual));
+    editingPath = path;
     return;
   }
   const entry = manifest?.chapters[currentIndex];
   ui.currentFile.textContent = path ? `${project?.name ?? ""}/${path}` : "";
   if (!project || !path || !entry) {
     sourceEditor.setText("");
+    editingPath = undefined;
     sourceEditor.setReadOnly(true);
     ui.sourceKind.textContent = "";
     return;
@@ -246,17 +254,26 @@ async function showChapterInEditor(): Promise<void> {
   ui.sourceKind.textContent = entry.file === "catalog" ? "メニュー定義" : languageFor(path) === "json" ? "手順 JSON" : "Markdown";
   ui.formatToolbar.hidden = languageFor(path) !== "markdown";
   try {
-    sourceEditor.setText(await project.readText(path));
+    const text = await project.readText(path);
+    sourceEditor.setText(text);
+    editingPath = path;
   } catch (error) {
     sourceEditor.setText("");
+    editingPath = undefined;
     logMessage(`${path} を読めません: ${(error as Error).message}`, "error");
   }
 }
 
 /** ソースの変更：キャッシュを更新し、保存と再描画を予約する */
 function onSourceChanged(text: string): void {
-  const path = currentChapterPath();
+  const path = editingPath;
   if (!project || !path) {
+    return;
+  }
+  // 念のため: 表示中の章のファイルと一致しないときは保存しない（切り替え中の取りこぼし防止）
+  const expected = currentChapterPath();
+  if (expected !== undefined && expected !== path) {
+    logMessage(`章の切り替え中に届いた変更を破棄しました（${path}）。もう一度入力してください`, "warn");
     return;
   }
   project.setCachedText(path, text);
@@ -1748,6 +1765,7 @@ async function openProject(name: string): Promise<void> {
   try {
     await flushWrites();
     const dir = await root.getDirectoryHandle(name);
+    editingPath = undefined;
     project = new ProjectDir(dir, name);
     manifest = await project.readManifest();
     currentIndex = manifest.chapters.length > 0 ? 0 : -1;
