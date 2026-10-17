@@ -59,6 +59,10 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
   Editable preview adds `data-el`; drag/resize handlers live in `main.ts` (`enableCoverEditing`) and write back through `commitCoverDesign()`. Exports never contain `data-el`.
 - Heading ids are `c{chapter}-{n}`, chapter anchors `d{n}`.
 - Everything that ends up in the exported HTML goes through DOMPurify first. Never concatenate raw user input.
+- External changes: `ProjectDir` remembers each text file's `lastModified` at read/write. `writeText()` throws
+  `ExternalChangeError` instead of overwriting a file another app changed; `main.ts` then reloads it from disk, and a
+  3 s watcher (`checkExternalChanges`) reloads the open chapter / `manual.json` when they change outside the editor.
+  Scripts that edit project files while the editor is open must write via temp file + rename (never truncate in place).
 - Errors: core functions log with `[functionName]` prefix and rethrow; `main.ts` turns them into message-list
   entries. No silent catches.
 - Exported file: `output/<project folder name>_<YYYYMMDD>.html` inside the project; the document `<title>` is set to the folder name too (`ExportOptions.documentTitle`) so "Save as PDF" defaults to the same name.

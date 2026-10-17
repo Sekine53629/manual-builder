@@ -82,13 +82,24 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+/** 読んだ（または書いた）あとに、別のアプリがそのファイルを変更していたときに writeText が投げる */
+export class ExternalChangeError extends Error {
+  constructor(readonly path: string) {
+    super(`${path} は別のアプリで変更されています`);
+    this.name = "ExternalChangeError";
+  }
+}
+
 /**
  * 1 つのプロジェクトフォルダ。ProjectFiles として core に渡す。
- * 読んだテキストと画像はキャッシュし、エディタで編集中の内容は setCachedText で差し替える
+ * 読んだテキストと画像はキャッシュし、エディタで編集中の内容は setCachedText で差し替える。
+ * テキストは読み書きした時点の更新日時も覚えておき、外部で変更されたファイルを上書きしない
  */
 export class ProjectDir implements ProjectFiles {
   private textCache = new Map<string, string>();
   private dataUriCache = new Map<string, string>();
+  /** path → 最後に読み書きしたときのファイル更新日時（ms） */
+  private modified = new Map<string, number>();
 
   constructor(
     readonly handle: FileSystemDirectoryHandle,
@@ -130,7 +141,25 @@ export class ProjectDir implements ProjectFiles {
     const file = await (await this.getFile(path, false)).getFile();
     const text = stripBom(await file.text());
     this.textCache.set(path, text);
+    this.modified.set(path, file.lastModified);
     return text;
+  }
+
+  /**
+   * 最後に読み書きしてから、ディスク上のファイルが変わったか。
+   * 一度も読んでいないファイルや、存在しないファイルは false
+   */
+  async changedOnDisk(path: string): Promise<boolean> {
+    const known = this.modified.get(path);
+    if (known === undefined) {
+      return false;
+    }
+    try {
+      const file = await (await this.getFile(path, false)).getFile();
+      return file.lastModified !== known;
+    } catch {
+      return false;
+    }
   }
 
   async readDataUri(path: string): Promise<string> {
@@ -175,11 +204,15 @@ export class ProjectDir implements ProjectFiles {
 
   async writeText(path: string, text: string): Promise<void> {
     try {
+      if (await this.changedOnDisk(path)) {
+        throw new ExternalChangeError(path);
+      }
       const file = await this.getFile(path, true);
       const writable = await file.createWritable();
       await writable.write(text);
       await writable.close();
       this.textCache.set(path, text);
+      this.modified.set(path, (await file.getFile()).lastModified);
     } catch (error) {
       console.error(`[ProjectDir.writeText] ${path} の書き込みに失敗しました:`, error);
       throw error;
@@ -205,10 +238,18 @@ export class ProjectDir implements ProjectFiles {
     this.textCache.set(path, text);
   }
 
+  /** 1 ファイル分のキャッシュを捨てて、次回はディスクから読み直す */
+  forget(path: string): void {
+    this.textCache.delete(path);
+    this.dataUriCache.delete(path);
+    this.modified.delete(path);
+  }
+
   /** キャッシュを捨てて次回はディスクから読み直す */
   invalidate(): void {
     this.textCache.clear();
     this.dataUriCache.clear();
+    this.modified.clear();
   }
 
   async readManifest(): Promise<Manifest> {

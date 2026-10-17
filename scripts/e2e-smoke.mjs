@@ -84,8 +84,8 @@ const FAKE_FS = String.raw`
     async write(data) { this.chunks.push(data); } async close() {
       const parts = []; for (const c of this.chunks) parts.push(c instanceof Blob ? c : new Blob([c]));
       this.file.blob = new Blob(parts, { type: this.file.blob.type }); this.file.mtime = Date.now(); } }
-  class FakeFile { constructor(name, blob) { this.kind = "file"; this.name = name; this.blob = blob; }
-    async getFile() { return new File([this.blob], this.name, { type: this.blob.type }); }
+  class FakeFile { constructor(name, blob) { this.kind = "file"; this.name = name; this.blob = blob; this.mtime = 1; }
+    async getFile() { return new File([this.blob], this.name, { type: this.blob.type, lastModified: this.mtime }); }
     async createWritable() { return new FakeWritable(this); }
     async queryPermission() { return "granted"; } async requestPermission() { return "granted"; } }
   class FakeDir { constructor(name) { this.kind = "directory"; this.name = name; this.children = new Map(); }

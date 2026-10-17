@@ -18,6 +18,7 @@ import { ASSET_DRAG_TYPE, PaneEditor, type EditorLanguage } from "./editor-panes
 import { parseFigureAttrs, rewriteImageAttrs, type FigureLayout } from "./core/figure-layout";
 import { ScrollSync, type SyncAnchor } from "./scroll-sync";
 import {
+  ExternalChangeError,
   ProjectDir,
   createProject,
   ensurePermission,
@@ -31,6 +32,8 @@ import manualCss from "./styles/manual.css?raw";
 const MAX_MESSAGES = 40;
 const SAVE_DELAY_MS = 600;
 const RENDER_DELAY_MS = 250;
+/** 編集中のファイルが別のアプリで変更されていないかを見に行く間隔 */
+const WATCH_INTERVAL_MS = 3000;
 const LAST_PROJECT_KEY = "manual-builder.lastProject";
 const MARKDOWN_EXTENSIONS = [".md", ".markdown"];
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
@@ -308,6 +311,13 @@ async function flushWrites(): Promise<void> {
     try {
       await project.writeText(path, text);
     } catch (error) {
+      if (error instanceof ExternalChangeError) {
+        // 別のアプリ（他のエディタ・スクリプト）が書いたファイルを古い内容で潰さない。
+        // こちらの未保存分は捨て、ディスクの内容を読み直す
+        logMessage(`${path} は別のアプリで変更されていたため、エディタの内容では上書きせずディスクの内容を読み直しました。直前の入力はもう一度行ってください`, "warn");
+        await reloadFromDisk(path);
+        continue;
+      }
       logMessage(`${path} の保存に失敗しました: ${(error as Error).message}`, "error");
       pendingWrites.set(path, text);
     }
@@ -321,6 +331,43 @@ async function flushWrites(): Promise<void> {
     }
   }
   updateSaveStatus();
+}
+
+/** ディスクの内容を読み直し、表示中のファイルならエディタとプレビューも差し替える */
+async function reloadFromDisk(path: string): Promise<void> {
+  if (!project) {
+    return;
+  }
+  project.forget(path);
+  pendingWrites.delete(path);
+  if (path === PROJECT_LAYOUT.manifest) {
+    manifest = await project.readManifest();
+    manifestDirty = false;
+    syncUiFromManifest();
+  } else if (path === editingPath) {
+    const text = await project.readText(path);
+    sourceEditor.setText(text);
+  }
+  updateSaveStatus();
+  scheduleRebuild();
+}
+
+/** 編集中のファイルと manual.json が外部で変更されていたら読み直す（定期チェック） */
+async function checkExternalChanges(): Promise<void> {
+  if (!project || document.hidden || pendingWrites.size > 0 || manifestDirty || sourceEditor.view.composing) {
+    return;
+  }
+  const targets = [PROJECT_LAYOUT.manifest, editingPath].filter((p): p is string => p !== undefined);
+  for (const path of targets) {
+    try {
+      if (await project.changedOnDisk(path)) {
+        await reloadFromDisk(path);
+        logMessage(`${path} が別のアプリで変更されたため読み直しました`);
+      }
+    } catch (error) {
+      logMessage(`${path} の変更確認に失敗しました: ${(error as Error).message}`, "warn");
+    }
+  }
 }
 
 function markManifestDirty(): void {
@@ -1970,6 +2017,7 @@ function setupEvents(): void {
     sync.enabled = ui.syncToggle.checked;
   });
 
+  window.setInterval(() => void checkExternalChanges(), WATCH_INTERVAL_MS);
   window.addEventListener("beforeunload", (event) => {
     if (pendingWrites.size > 0 || manifestDirty) {
       void flushWrites();
