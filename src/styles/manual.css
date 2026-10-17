@@ -666,9 +666,16 @@ nav.toc a:hover {
   text-align: center;
 }
 
-.manual-figure svg {
+.manual-figure svg,
+.manual-figure img {
   max-width: 100%;
   height: auto;
+}
+
+/* 幅（w=）を指定した図は、中身を figure の幅いっぱいに */
+.manual-figure[style*="width"] svg,
+.manual-figure[style*="width"] img {
+  width: 100%;
 }
 
 .manual-figure figcaption {

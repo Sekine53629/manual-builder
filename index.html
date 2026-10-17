@@ -60,6 +60,8 @@
             <input id="file-input" type="file" accept=".md,.markdown,.json,.svg,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple disabled>
           </label>
         </div>
+        <ul id="asset-list" class="asset-list"></ul>
+        <p class="hint">素材をプレビューやソースへドラッグ＆ドロップすると、その位置に図を差し込みます（クリックでカーソル位置に挿入）。</p>
         <p id="catalog-status" class="hint"></p>
         <p class="hint">Markdown では <code>![説明](ファイル名.svg)</code> / <code>![説明](ファイル名.png)</code>、操作経路は <code>[[chips:m_tabs:F10, m_option1:F1]]</code> で参照します。</p>
       </section>
@@ -103,6 +105,47 @@
         <div class="panes">
           <section id="source-pane" class="pane">
             <div class="pane-title">ソース <span id="source-kind" class="kind-tag"></span></div>
+            <div id="format-toolbar" class="format-toolbar" hidden>
+              <button type="button" data-fmt="bold" title="太字（**テキスト**）"><b>B</b></button>
+              <button type="button" data-fmt="italic" title="斜体（*テキスト*）"><i>I</i></button>
+              <button type="button" data-fmt="underline" title="下線（&lt;u&gt;）"><u>U</u></button>
+              <button type="button" data-fmt="strike" title="取り消し線（~~テキスト~~）"><s>S</s></button>
+              <span class="sep"></span>
+              <span class="swatches" title="文字色（よく使う色）">
+                <button type="button" data-color="#b42318" style="background:#b42318"></button>
+                <button type="button" data-color="#2b6cb0" style="background:#2b6cb0"></button>
+                <button type="button" data-color="#2f855a" style="background:#2f855a"></button>
+                <button type="button" data-color="#c05621" style="background:#c05621"></button>
+                <button type="button" data-color="#6b7280" style="background:#6b7280"></button>
+              </span>
+              <input type="color" id="fmt-color" value="#b42318" title="文字色を選ぶ">
+              <button type="button" data-fmt="color" title="選んだ文字色を付ける">文字色</button>
+              <input type="color" id="fmt-bg" value="#fff3b0" title="マーカーの色を選ぶ">
+              <button type="button" data-fmt="bg" title="マーカー（背景色）を付ける">マーカー</button>
+              <span class="sep"></span>
+              <select id="fmt-font" title="フォント">
+                <option value="">フォント</option>
+                <option value="sans">ゴシック</option>
+                <option value="serif">明朝</option>
+                <option value="mono">等幅</option>
+              </select>
+              <select id="fmt-size" title="文字サイズ">
+                <option value="">サイズ</option>
+                <option value="0.85em">小</option>
+                <option value="1.2em">大</option>
+                <option value="1.5em">特大</option>
+              </select>
+              <span class="sep"></span>
+              <button type="button" data-fmt="h2" title="見出し 2（## ）">H2</button>
+              <button type="button" data-fmt="h3" title="見出し 3（### ）">H3</button>
+              <button type="button" data-fmt="ul" title="箇条書き（- ）">•</button>
+              <button type="button" data-fmt="ol" title="番号付き（1. ）">1.</button>
+              <button type="button" data-fmt="quote" title="引用・注意書き（&gt; ）">❝</button>
+              <button type="button" data-fmt="code" title="コード（`テキスト`）">&lt;/&gt;</button>
+              <button type="button" data-fmt="chips" title="操作経路のチップ [[chips:…]]">チップ</button>
+              <button type="button" data-fmt="table" title="表を挿入">表</button>
+              <button type="button" data-fmt="meta" title="出典行（&lt;div class=&quot;meta&quot;&gt;）">出典</button>
+            </div>
             <div id="source-editor" class="cm-host"></div>
           </section>
           <section id="html-pane" class="pane" hidden>

@@ -14,7 +14,12 @@ export interface PaneEditorOptions {
   readOnly?: boolean;
   onChange?: (text: string) => void;
   onScroll?: () => void;
+  /** 素材（ASSET_DRAG_TYPE）がドロップされたときに挿入する文字列を返す。undefined なら既定のドロップ処理 */
+  assetDropText?: (name: string) => string | undefined;
 }
+
+/** 素材一覧からのドラッグで使う dataTransfer の種類 */
+export const ASSET_DRAG_TYPE = "application/x-mb-asset";
 
 /** スクロール位置を「先頭に見えている行 + 行内の割合」で表す */
 export interface LinePosition {
@@ -57,6 +62,30 @@ export class PaneEditor {
             if (update.docChanged && !this.suppressChange && options.onChange) {
               options.onChange(update.state.doc.toString());
             }
+          }),
+          EditorView.domEventHandlers({
+            dragover: (event) => {
+              if (event.dataTransfer?.types.includes(ASSET_DRAG_TYPE)) {
+                event.preventDefault();
+                return true;
+              }
+              return false;
+            },
+            drop: (event, view) => {
+              const name = event.dataTransfer?.getData(ASSET_DRAG_TYPE);
+              if (!name || !options.assetDropText) {
+                return false;
+              }
+              const text = options.assetDropText(name);
+              if (text === undefined) {
+                return false;
+              }
+              event.preventDefault();
+              const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.doc.length;
+              view.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length } });
+              view.focus();
+              return true;
+            },
           }),
         ],
       }),
@@ -130,6 +159,50 @@ export class PaneEditor {
   }
 
   focus(): void {
+    this.view.focus();
+  }
+
+  /** カーソル位置（選択範囲）に文字列を挿入する */
+  insertAtCursor(text: string): void {
+    const { from, to } = this.view.state.selection.main;
+    this.view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
+    this.view.focus();
+  }
+
+  /** 選択範囲を before / after で囲む。選択が無ければ placeholder を囲んで選択状態にする */
+  wrapSelection(before: string, after: string, placeholder = "テキスト"): void {
+    const { from, to } = this.view.state.selection.main;
+    const selected = this.view.state.sliceDoc(from, to);
+    const inner = selected || placeholder;
+    this.view.dispatch({
+      changes: { from, to, insert: `${before}${inner}${after}` },
+      selection: { anchor: from + before.length, head: from + before.length + inner.length },
+    });
+    this.view.focus();
+  }
+
+  /** 選択範囲にかかる各行の先頭に prefix を付ける（番号付きは n. を振る） */
+  prefixLines(prefix: string | ((index: number) => string)): void {
+    const { from, to } = this.view.state.selection.main;
+    const doc = this.view.state.doc;
+    const first = doc.lineAt(from).number;
+    const last = doc.lineAt(to).number;
+    const changes = [];
+    for (let n = first; n <= last; n++) {
+      const line = doc.line(n);
+      const p = typeof prefix === "function" ? prefix(n - first) : prefix;
+      changes.push({ from: line.from, insert: p });
+    }
+    this.view.dispatch({ changes });
+    this.view.focus();
+  }
+
+  /** カーソル行の直後に段落（前後に空行）を挿入する */
+  insertBlock(text: string): void {
+    const { to } = this.view.state.selection.main;
+    const line = this.view.state.doc.lineAt(to);
+    const insert = `\n\n${text}\n`;
+    this.view.dispatch({ changes: { from: line.to, insert }, selection: { anchor: line.to + 2 + text.length } });
     this.view.focus();
   }
 

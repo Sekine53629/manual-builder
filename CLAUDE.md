@@ -25,7 +25,7 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
 | Path | Role | Rule |
 |---|---|---|
 | `src/core/` | Assembly logic: project (manifest → Manual, group numbering), types, markdown, catalog (refs → chips), steps, catalog-page, cover (cover.json → cover page), manual (inlining, chips, line markers, heading ids), export | **Must not touch `document`, `window` globals or the UI.** `DOMParser` is allowed; DOMPurify is obtained via `purifier()`. File access only through the `ProjectFiles` interface. |
-| `src/main.ts` | UI: project selection, chapter list (insert / reorder / groups), code pane (source / HTML tabs) + preview, import into the project folder, export, print. Rebuild and autosave are deferred while `view.composing` (IME); the preview iframe is updated in place (`updatePreview`), never reloaded after the first load | Only place that reads DOM elements by id. Exposes `window.manualBuilder` (tiny hook for the e2e test) |
+| `src/main.ts` | UI: project selection, chapter list (insert / reorder / groups), code pane (source / HTML tabs) + preview, asset list (drag to preview/source), format toolbar (wraps the CodeMirror selection; non-Markdown styling is inline HTML such as `<u>` / `<span style>`), figure and cover drag editing in the preview, import into the project folder, export, print. Rebuild and autosave are deferred while `view.composing` (IME); the preview iframe is updated in place (`updatePreview`), never reloaded after the first load | Only place that reads DOM elements by id. Exposes `window.manualBuilder` (tiny hook for the e2e test) |
 | `src/project-store.ts` | File System Access API: root handle, project listing/creation, `ProjectDir` (cached `ProjectFiles` + writes) | Browser only |
 | `src/editor-panes.ts` / `src/scroll-sync.ts` | CodeMirror wrapper; line-based scroll sync between panes | `interpolate()` is unit-tested |
 | `src/storage.ts` | Settings (root handle) in IndexedDB | Browser only |
@@ -46,7 +46,10 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
   is on (existing `第N章` prefixes are stripped). Consecutive chapters with the same name form one group.
 - Chip references: `m_<menu>:<KEY>` → menu item, `s:<画面名>:<KEY>` → screen key; `resolveRef()` in
   `catalog.ts` is the single resolution rule. `m_tabs` → `.chip.tab`, `m_zaiko_tabs` → `.chip.ztab`.
-- Figures and images are referenced by **file name only** (`imageKey()`).
+- Figures and images are referenced by **file name only** (`imageKey()`). Figure layout lives in the Markdown as
+  `![alt](src){w=80 mt=6 ml=10 p=3 align=left}` (mm); `figure-layout.ts` moves it into the image URL hash before marked,
+  `manual.ts` applies it as inline style on `figure.manual-figure` (plus `data-fig` / `data-fig-layout` in sourceMap mode),
+  and the editor writes it back with `rewriteImageAttrs()`.
 - Markdown: front matter `title`/`subtitle` → `<h1>` + `<p class="sub">`; `[[chips:...]]` on its own line
   → placeholder replaced after sanitizing; `normalizeStrong()` makes `**…」**に` bold; `breaks: true`.
 - Source map for the editor: `renderChapter(…, { sourceMap: true })` emits `data-line` (Markdown blocks, source

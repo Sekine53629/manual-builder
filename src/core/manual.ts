@@ -6,6 +6,7 @@ import { findImage, parseChipRefs, renderChips, type ChipContext } from "./catal
 import { renderStepsHtml } from "./steps";
 import { renderCatalogHtml } from "./catalog-page";
 import { escapeHtml } from "./html";
+import { figureStyle, serializeFigureAttrs, splitFigureSrc, type FigureLayout } from "./figure-layout";
 
 export interface TocEntry {
   level: number;
@@ -46,7 +47,7 @@ export function renderChapter(chapter: Chapter, manual: Manual, index: number, o
     const raw = renderBody(chapter, manual, context, warnings, sourceMap);
     const doc = new DOMParser().parseFromString(raw, "text/html");
 
-    inlineFigures(doc, manual.figures, manual.images).forEach((src) => warnings.push(`図 ${src} が見つかりません`));
+    inlineFigures(doc, manual.figures, manual.images, sourceMap).forEach((src) => warnings.push(`図 ${src} が見つかりません`));
     replaceChipPlaceholders(doc, context, warnings);
     applyLineMarkers(doc);
     const toc = assignHeadingIds(doc, index);
@@ -109,16 +110,18 @@ function applyLineMarkers(doc: Document): void {
 }
 
 /** `<img>` を図（インライン SVG）または data URI 画像に差し替える。戻り値は見つからなかった参照 */
-function inlineFigures(doc: Document, figures: Figure[], images: ImageAsset[]): string[] {
+function inlineFigures(doc: Document, figures: Figure[], images: ImageAsset[], sourceMap = false): string[] {
   const byKey = new Map(figures.map((figure) => [figureKey(figure.name), figure]));
   const missing: string[] = [];
 
   doc.querySelectorAll("img").forEach((img) => {
-    const src = img.getAttribute("src") ?? "";
-    if (src.startsWith("data:")) {
+    const rawSrc = img.getAttribute("src") ?? "";
+    if (rawSrc.startsWith("data:")) {
       return; // チップなどで既に埋め込み済み
     }
+    const { path: src, layout } = splitFigureSrc(rawSrc);
     const key = figureKey(src);
+    const caption = img.getAttribute("alt") ?? "";
     if (/\.svg$/i.test(key)) {
       const figure = byKey.get(key);
       if (!figure) {
@@ -126,7 +129,9 @@ function inlineFigures(doc: Document, figures: Figure[], images: ImageAsset[]): 
         img.replaceWith(createMissingNotice(doc, src));
         return;
       }
-      img.replaceWith(createFigureElement(doc, figure, img.getAttribute("alt") ?? ""));
+      const figureEl = createFigureElement(doc, caption, layout, key, sourceMap);
+      figureEl.insertAdjacentHTML("afterbegin", figure.svg);
+      img.replaceWith(figureEl);
       return;
     }
     if (RASTER_EXTENSIONS.test(key)) {
@@ -137,16 +142,33 @@ function inlineFigures(doc: Document, figures: Figure[], images: ImageAsset[]): 
         return;
       }
       img.setAttribute("src", asset.dataUri);
+      // 手順ページの figure.shot など、既に figure に入っているものはそのまま
+      if (img.parentElement?.tagName === "FIGURE") {
+        return;
+      }
+      const figureEl = createFigureElement(doc, caption, layout, key, sourceMap);
+      img.replaceWith(figureEl);
+      figureEl.insertAdjacentElement("afterbegin", img);
+      img.removeAttribute("alt");
+      img.setAttribute("alt", "");
     }
   });
 
   return missing;
 }
 
-function createFigureElement(doc: Document, figure: Figure, caption: string): HTMLElement {
+/** 図の入れ物。配置属性を style に、編集用に data-fig（ファイル名）と data-fig-layout を付ける */
+function createFigureElement(doc: Document, caption: string, layout: FigureLayout, key: string, sourceMap: boolean): HTMLElement {
   const figureEl = doc.createElement("figure");
   figureEl.className = "manual-figure";
-  figureEl.innerHTML = figure.svg;
+  const style = figureStyle(layout);
+  if (style) {
+    figureEl.setAttribute("style", style);
+  }
+  if (sourceMap) {
+    figureEl.setAttribute("data-fig", key);
+    figureEl.setAttribute("data-fig-layout", serializeFigureAttrs(layout));
+  }
   if (caption) {
     const captionEl = doc.createElement("figcaption");
     captionEl.textContent = caption;

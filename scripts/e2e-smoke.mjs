@@ -217,6 +217,43 @@ async function main() {
     const exported = await readFakeText(cdp, `output/${outName.split(",").find((n) => n.endsWith(".html"))}`);
     check("書き出した HTML には data-line が含まれない", !exported.includes("data-line") && exported.includes("第3章"));
 
+    // 図の配置: 02-operation.md の flow.svg をドラッグして Markdown に {mt=…} が書かれるか
+    {
+      const opIndex = manifest.chapters.findIndex((c) => c.file.endsWith("02-operation.md"));
+      await cdp.eval(`document.querySelectorAll("#chapter-list li:not(.cover-row) .title-button")[${opIndex}].click(); "ok"`);
+      await waitFor(cdp, `document.querySelector("#preview").contentDocument.querySelector('figure[data-fig="flow.svg"]') !== null`);
+      check("素材一覧に images/ の素材が並ぶ", (await cdp.eval(`document.querySelectorAll("#asset-list li").length`)) >= 3);
+      const fig = await cdp.eval(`(() => { const f = document.querySelector("#preview").getBoundingClientRect(); const el = document.querySelector("#preview").contentDocument.querySelector('figure[data-fig="flow.svg"]'); const r = el.getBoundingClientRect(); return { x: f.left + r.left + r.width / 2, y: f.top + r.top + 10 }; })()`);
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: fig.x, y: fig.y });
+      await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: fig.x, y: fig.y, button: "left", clickCount: 1 });
+      for (let i = 1; i <= 5; i++) {
+        await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: fig.x, y: fig.y + i * 10, button: "left" });
+      }
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: fig.x, y: fig.y + 50, button: "left" });
+      await waitFor(cdp, `window.manualBuilder.sourceText().includes("flow.svg){mt=")`, 5000);
+      const src = await cdp.eval(`window.manualBuilder.sourceText()`);
+      check("図を下へドラッグすると原稿の画像記法に上余白 {mt=…} が書かれる", /flow\.svg\)\{mt=\d+(\.5)?\}/.test(src), src.match(/flow\.svg\)\{[^}]*\}/)?.[0]);
+      await waitFor(cdp, `document.querySelector("#preview").contentDocument.querySelector('figure[data-fig="flow.svg"].mb-selected .mb-fig-toolbar') !== null`, 5000);
+      check("選択した図に配置ツールバーが出る", true);
+      const shotFig = await cdp.send("Page.captureScreenshot", { format: "png" });
+      const { writeFileSync: wf2 } = await import("node:fs");
+      wf2("output/e2e-figure.png", Buffer.from(shotFig.data, "base64"));
+      // 素材のドロップ: プレビューの先頭付近に落とすと画像記法が挿入される
+      const top = await cdp.eval(`(() => { const f = document.querySelector("#preview").getBoundingClientRect(); const h2 = document.querySelector("#preview").contentDocument.querySelector("h2[data-line]"); const r = h2.getBoundingClientRect(); return { x: r.left + 10, y: r.top + 2 }; })()`);
+      await cdp.eval(`window.manualBuilder.dropAsset("m_sample_F1.png", ${top.x}, ${top.y}); "ok"`);
+      await waitFor(cdp, `window.manualBuilder.sourceText().includes("![m_sample_F1](m_sample_F1.png)")`, 5000);
+      await waitFor(cdp, `document.querySelector("#preview").contentDocument.querySelector('figure[data-fig="m_sample_f1.png"]') !== null`, 5000);
+      check("素材をプレビューに落とすと、その位置の直前に画像記法が挿入され、プレビューに出る", true);
+      // 書式ツールバー: 見出しの文字を選んで下線と文字色を付ける
+      const srcNow = await cdp.eval(`window.manualBuilder.sourceText()`);
+      const idx = srcNow.indexOf("全体の流れ");
+      await cdp.eval(`window.manualBuilder.selectRange(${idx}, ${idx + 5}); window.manualBuilder.applyFormat("underline"); "ok"`);
+      await cdp.eval(`document.querySelector("#fmt-color").value = "#2b6cb0"; window.manualBuilder.applyFormat("color"); "ok"`);
+      await waitFor(cdp, `window.manualBuilder.sourceText().includes('<u><span style="color:#2b6cb0">全体の流れ</span></u>')`, 3000);
+      await waitFor(cdp, `document.querySelector("#preview").contentDocument.body.innerHTML.includes('<u><span style="color:#2b6cb0">全体の流れ</span></u>')`, 5000);
+      check("書式ツールバーの下線・文字色が原稿とプレビューに反映される", !(await cdp.eval(`document.querySelector("#format-toolbar").hidden`)));
+    }
+
     // 表紙デザイン: 表紙行を選び、プレビューの要素をドラッグして cover.json に位置が保存されるか
     await cdp.eval(`window.manualBuilder.selectCover(); "ok"`);
     await waitFor(cdp, `document.querySelector("#source-kind").textContent === "表紙デザイン" && document.querySelector("#preview").contentDocument.querySelector('[data-el="title"]') !== null`);

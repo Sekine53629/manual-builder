@@ -1,5 +1,6 @@
 // Markdown → HTML 変換（marked + DOMPurify）、front matter、チップ記法の前処理
 import { marked, type MarkedOptions, type TokensList } from "marked";
+import { moveImageAttrsToHash } from "./figure-layout";
 import DOMPurify, { type Config, type DOMPurify as Purifier } from "dompurify";
 
 const SANITIZE_OPTIONS: Config = {
@@ -155,7 +156,7 @@ function renderWithLineMarkers(markdown: string, lineOffset: number): string {
 /** Markdown 本文をサニタイズ済み HTML に変換する（front matter は呼び出し側で除去済みであること） */
 export function renderMarkdown(markdown: string, options: RenderMarkdownOptions = {}): string {
   try {
-    const prepared = replaceChipLines(normalizeStrong(stripBom(markdown)));
+    const prepared = replaceChipLines(moveImageAttrsToHash(normalizeStrong(stripBom(markdown))));
     const raw = options.sourceMap
       ? renderWithLineMarkers(prepared, options.lineOffset ?? 0)
       : (marked.parse(prepared, MARKED_OPTIONS) as string);

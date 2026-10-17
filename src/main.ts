@@ -14,7 +14,8 @@ import { isMenuCatalog } from "./core/catalog";
 import { buildChapterHtml, buildCoverHtml, buildManualHtml } from "./core/export";
 import { COVER_PAGE, coverTemplate, defaultCoverDesign, isCoverDesign, newCoverElement, type CoverDesign, type CoverElement, type CoverElementType } from "./core/cover";
 import { stripBom } from "./core/markdown";
-import { PaneEditor, type EditorLanguage } from "./editor-panes";
+import { ASSET_DRAG_TYPE, PaneEditor, type EditorLanguage } from "./editor-panes";
+import { parseFigureAttrs, rewriteImageAttrs, type FigureLayout } from "./core/figure-layout";
 import { ScrollSync, type SyncAnchor } from "./scroll-sync";
 import {
   ProjectDir,
@@ -84,6 +85,7 @@ const ui = {
   dropZone: byId<HTMLDivElement>("drop-zone"),
   fileInput: byId<HTMLInputElement>("file-input"),
   assetCount: byId<HTMLElement>("asset-count"),
+  assetList: byId<HTMLUListElement>("asset-list"),
   catalogStatus: byId<HTMLElement>("catalog-status"),
   messageList: byId<HTMLUListElement>("message-list"),
   welcome: byId<HTMLElement>("welcome"),
@@ -101,6 +103,11 @@ const ui = {
   htmlPane: byId<HTMLElement>("html-pane"),
   previewPane: byId<HTMLElement>("preview-pane"),
   sourceKind: byId<HTMLElement>("source-kind"),
+  formatToolbar: byId<HTMLElement>("format-toolbar"),
+  fmtColor: byId<HTMLInputElement>("fmt-color"),
+  fmtBg: byId<HTMLInputElement>("fmt-bg"),
+  fmtFont: byId<HTMLSelectElement>("fmt-font"),
+  fmtSize: byId<HTMLSelectElement>("fmt-size"),
   sourceEditorHost: byId<HTMLElement>("source-editor"),
   htmlEditorHost: byId<HTMLElement>("html-editor"),
   preview: byId<HTMLIFrameElement>("preview"),
@@ -165,7 +172,17 @@ const sourceEditor = new PaneEditor(ui.sourceEditorHost, {
   language: "markdown",
   onChange: (text) => onSourceChanged(text),
   onScroll: () => sync.fromSource(),
+  assetDropText: (name) => assetInsertText(name),
 });
+
+/** 素材をソースに差し込むときの文字列（Markdown は画像記法、JSON は文字列） */
+function assetInsertText(name: string): string | undefined {
+  const path = currentChapterPath();
+  if (!path) {
+    return undefined;
+  }
+  return languageFor(path) === "markdown" ? `![${name.replace(/\.[^.]+$/, "")}](${name})` : `"${name}"`;
+}
 const htmlEditor = new PaneEditor(ui.htmlEditorHost, {
   language: "html",
   readOnly: true,
@@ -211,6 +228,7 @@ async function showChapterInEditor(): Promise<void> {
     sourceEditor.setReadOnly(false);
     sourceEditor.setLanguage("json");
     ui.sourceKind.textContent = "表紙デザイン";
+    ui.formatToolbar.hidden = true;
     // cover.json がまだ無ければ既定デザインをひな形として出す（編集・ドラッグした時点で保存される）
     sourceEditor.setText(assembled.coverText ?? coverTemplate(assembled.manual));
     return;
@@ -226,6 +244,7 @@ async function showChapterInEditor(): Promise<void> {
   sourceEditor.setReadOnly(false);
   sourceEditor.setLanguage(languageFor(path));
   ui.sourceKind.textContent = entry.file === "catalog" ? "メニュー定義" : languageFor(path) === "json" ? "手順 JSON" : "Markdown";
+  ui.formatToolbar.hidden = languageFor(path) !== "markdown";
   try {
     sourceEditor.setText(await project.readText(path));
   } catch (error) {
@@ -413,6 +432,8 @@ function updatePreview(html: string): void {
     doc.body.innerHTML = parsed.body.innerHTML;
     sync.syncFromSourceNow();
     enableCoverEditing();
+    enableFigureEditing();
+    enablePreviewDrop();
     return;
   }
   ui.preview.srcdoc = html;
@@ -575,7 +596,7 @@ function selectCoverElement(id: string | undefined): void {
   }
 }
 
-function addCoverElement(type: CoverElementType, text: string, src?: string): void {
+function addCoverElement(type: CoverElementType, text: string, src?: string, at?: { x: number; y: number }): void {
   const design = currentCoverDesign();
   const used = new Set(design.elements.map((e) => e.id));
   let n = design.elements.length + 1;
@@ -585,6 +606,10 @@ function addCoverElement(type: CoverElementType, text: string, src?: string): vo
   const element = newCoverElement(type, `${type}${n}`, src);
   if (type === "text" && text.trim()) {
     element.text = text;
+  }
+  if (at) {
+    element.x = Math.min(at.x, COVER_PAGE.width - (element.w ?? 10));
+    element.y = Math.min(at.y, COVER_PAGE.height - 10);
   }
   design.elements.push(element);
   selectedCoverElementId = element.id;
@@ -686,6 +711,8 @@ ui.preview.addEventListener("load", () => {
     sync.rebuildHtmlSegments();
     sync.syncFromSourceNow();
     enableCoverEditing();
+    enableFigureEditing();
+    enablePreviewDrop();
   }
 });
 
@@ -1152,14 +1179,481 @@ function renderAssetStatus(): void {
   if (!assembled) {
     ui.assetCount.textContent = "";
     ui.catalogStatus.textContent = "";
+    ui.assetList.replaceChildren();
     return;
   }
   const manual = assembled.manual;
+  renderAssetList();
   ui.assetCount.textContent = `(図 ${manual.figures.length} / 画像 ${manual.images.length})`;
   const catalogText = manual.catalog
     ? `メニュー定義: メニュー ${manual.catalog.menus.length}、画面 ${manual.catalog.screens.length}`
     : "メニュー定義（catalog/menus.json）は未取り込みです。チップは解決されません。";
   ui.catalogStatus.textContent = `${catalogText} ／ ツリー表示: ${manual.menuTree ? "あり" : "なし"}`;
+}
+
+/** images/ の素材をサムネイル付きで並べる。ドラッグしてプレビューやソースへ落とせる */
+function renderAssetList(): void {
+  if (!assembled) {
+    return;
+  }
+  const items: { name: string; thumb: () => HTMLElement }[] = [
+    ...assembled.manual.images.map((img) => ({
+      name: img.name,
+      thumb: () => {
+        const el = document.createElement("img");
+        el.src = img.dataUri;
+        el.alt = "";
+        return el;
+      },
+    })),
+    ...assembled.manual.figures.map((fig) => ({
+      name: fig.name,
+      thumb: () => {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = fig.svg;
+        return wrap;
+      },
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  ui.assetList.replaceChildren(
+    ...items.map(({ name, thumb }) => {
+      const li = document.createElement("li");
+      li.draggable = true;
+      li.title = `${name}（ドラッグして配置、クリックでカーソル位置に挿入）`;
+      const t = document.createElement("div");
+      t.className = "thumb";
+      t.appendChild(thumb());
+      const label = document.createElement("span");
+      label.className = "asset-name";
+      label.textContent = name;
+      li.append(t, label);
+      li.addEventListener("dragstart", (event) => {
+        event.dataTransfer?.setData(ASSET_DRAG_TYPE, name);
+        event.dataTransfer?.setData("text/plain", name);
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "copy";
+        }
+      });
+      li.addEventListener("click", () => {
+        const text = assetInsertText(name);
+        if (text) {
+          sourceEditor.insertAtCursor(text);
+        }
+      });
+      return li;
+    }),
+  );
+}
+
+// ---- 図（本文中の SVG / PNG）の配置編集 ----------------------------------------------------
+
+const FIGURE_EDIT_STYLE_ID = "mb-figure-edit-style";
+const FIGURE_EDIT_CSS = `
+figure[data-fig] { cursor: move; outline: 1px dashed rgba(217, 119, 6, 0.55); outline-offset: 2px; position: relative; }
+figure[data-fig]:hover { outline-color: #d97706; }
+figure[data-fig].mb-selected { outline: 2px solid #d97706; }
+figure[data-fig] .mb-handle { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background: #d97706; border: 1px solid #fff; border-radius: 2px; cursor: nwse-resize; z-index: 1000; }
+.mb-fig-toolbar { position: absolute; top: -30px; left: 0; display: flex; gap: 3px; padding: 3px 5px; background: #fff7ed; border: 1px solid #f3c27a; border-radius: 4px; font: 11px/1.4 "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif; z-index: 1001; white-space: nowrap; cursor: default; }
+.mb-fig-toolbar button { font: inherit; padding: 1px 6px; border: 1px solid #e9d5bd; border-radius: 3px; background: #fff; color: #7c2d12; cursor: pointer; }
+.mb-fig-toolbar button:hover { background: #fde7c7; }
+.mb-fig-toolbar .mb-sep { width: 1px; background: #e9d5bd; margin: 0 2px; }
+.mb-fig-toolbar .mb-val { color: #8a7a68; align-self: center; }
+.mb-drop-marker { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed #d97706; pointer-events: none; z-index: 999; }
+`;
+let selectedFigureKey: string | undefined;
+
+/** プレビュー文書での 1mm のピクセル数（CSS の mm を実測する） */
+function previewPxPerMm(doc: Document): number {
+  const probe = doc.createElement("div");
+  probe.style.cssText = "position:absolute;visibility:hidden;width:100mm;height:0";
+  doc.body.appendChild(probe);
+  const px = probe.getBoundingClientRect().width / 100;
+  probe.remove();
+  return px || 3.78;
+}
+
+/** 図の配置を Markdown の該当行に書き戻す */
+function commitFigureLayout(figure: HTMLElement, layout: FigureLayout): void {
+  const key = figure.getAttribute("data-fig") ?? "";
+  const lineAttr = figure.closest("[data-line]")?.getAttribute("data-line");
+  const startLine = lineAttr ? Number(lineAttr) : 1;
+  const lines = sourceEditor.getText().split("\n");
+  for (let i = startLine - 1; i < Math.min(lines.length, startLine + 20); i++) {
+    const rewritten = rewriteImageAttrs(lines[i], key, layout);
+    if (rewritten !== lines[i]) {
+      lines[i] = rewritten;
+      const text = lines.join("\n");
+      sourceEditor.setText(text);
+      onSourceChanged(text);
+      return;
+    }
+  }
+  logMessage(`図 ${key} の記法が原稿の ${startLine} 行目付近に見つかりません`, "warn");
+}
+
+function enableFigureEditing(): void {
+  const doc = ui.preview.contentDocument;
+  if (!doc || coverSelected || manifest?.chapters[currentIndex] === undefined) {
+    return;
+  }
+  const figures = doc.querySelectorAll<HTMLElement>("figure[data-fig]");
+  if (figures.length === 0) {
+    return;
+  }
+  if (!doc.getElementById(FIGURE_EDIT_STYLE_ID)) {
+    const style = doc.createElement("style");
+    style.id = FIGURE_EDIT_STYLE_ID;
+    style.textContent = FIGURE_EDIT_CSS;
+    doc.head.appendChild(style);
+  }
+  const pxPerMm = previewPxPerMm(doc);
+
+  figures.forEach((figure) => {
+    const key = figure.getAttribute("data-fig") ?? "";
+    const layoutOf = () => parseFigureAttrs(figure.getAttribute("data-fig-layout") ?? "");
+    if (key === selectedFigureKey) {
+      figure.classList.add("mb-selected");
+      figure.appendChild(buildFigureToolbar(doc, figure, layoutOf));
+    }
+    const handle = doc.createElement("div");
+    handle.className = "mb-handle";
+    figure.appendChild(handle);
+
+    const start = (event: MouseEvent, mode: "move" | "resize") => {
+      if ((event.target as HTMLElement).closest(".mb-fig-toolbar")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      selectFigure(key);
+      const layout = layoutOf();
+      const rect = figure.getBoundingClientRect();
+      const parentRect = (figure.parentElement ?? doc.body).getBoundingClientRect();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const mt0 = layout.mt ?? 0;
+      const ml0 = layout.align === "left" ? (layout.ml ?? 0) : (rect.left - parentRect.left) / pxPerMm;
+      const w0 = rect.width / pxPerMm;
+      let moved = false;
+      const onMove = (e: MouseEvent) => {
+        const dx = (e.clientX - startX) / pxPerMm;
+        const dy = (e.clientY - startY) / pxPerMm;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && !moved) {
+          return;
+        }
+        moved = true;
+        if (mode === "move") {
+          layout.mt = Math.max(0, Math.round((mt0 + dy) * 2) / 2);
+          figure.style.marginTop = `${layout.mt}mm`;
+          if (Math.abs(dx) >= 1) {
+            layout.align = "left";
+            layout.ml = Math.max(0, Math.round((ml0 + dx) * 2) / 2);
+            figure.style.marginLeft = `${layout.ml}mm`;
+            figure.style.marginRight = "auto";
+          }
+        } else {
+          const w = Math.max(10, Math.round((w0 + dx) * 2) / 2);
+          layout.w = `${w}mm`;
+          figure.style.width = `${w}mm`;
+        }
+      };
+      const onUp = () => {
+        doc.removeEventListener("mousemove", onMove);
+        doc.removeEventListener("mouseup", onUp);
+        if (moved) {
+          commitFigureLayout(figure, layout);
+        }
+      };
+      doc.addEventListener("mousemove", onMove);
+      doc.addEventListener("mouseup", onUp);
+    };
+    figure.addEventListener("mousedown", (event) => start(event, "move"));
+    handle.addEventListener("mousedown", (event) => start(event, "resize"));
+  });
+}
+
+function buildFigureToolbar(doc: Document, figure: HTMLElement, layoutOf: () => FigureLayout): HTMLElement {
+  const bar = doc.createElement("div");
+  bar.className = "mb-fig-toolbar";
+  bar.addEventListener("mousedown", (e) => e.stopPropagation());
+  const button = (label: string, title: string, change: (l: FigureLayout) => void) => {
+    const b = doc.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const layout = layoutOf();
+      change(layout);
+      commitFigureLayout(figure, layout);
+    });
+    return b;
+  };
+  const sep = () => {
+    const d = doc.createElement("span");
+    d.className = "mb-sep";
+    return d;
+  };
+  const val = (text: string) => {
+    const v = doc.createElement("span");
+    v.className = "mb-val";
+    v.textContent = text;
+    return v;
+  };
+  const l = layoutOf();
+  bar.append(
+    button("左", "左寄せ", (x) => {
+      x.align = "left";
+      x.ml = x.ml ?? 0;
+    }),
+    button("中", "中央", (x) => {
+      x.align = "center";
+      delete x.ml;
+    }),
+    button("右", "右寄せ", (x) => {
+      x.align = "right";
+      delete x.ml;
+    }),
+    sep(),
+    val(`上 ${l.mt ?? 0}mm`),
+    button("−", "上の余白を 1mm 減らす", (x) => {
+      x.mt = Math.max(0, (x.mt ?? 0) - 1);
+    }),
+    button("＋", "上の余白を 1mm 増やす", (x) => {
+      x.mt = (x.mt ?? 0) + 1;
+    }),
+    sep(),
+    val(`内 ${l.p ?? 0}mm`),
+    button("−", "内側の余白を 1mm 減らす", (x) => {
+      x.p = Math.max(0, (x.p ?? 0) - 1);
+    }),
+    button("＋", "内側の余白を 1mm 増やす", (x) => {
+      x.p = (x.p ?? 0) + 1;
+    }),
+    sep(),
+    val(l.w ? `幅 ${l.w}` : "幅 自動"),
+    button("リセット", "配置をすべて既定に戻す", (x) => {
+      for (const k of Object.keys(x) as (keyof FigureLayout)[]) {
+        delete x[k];
+      }
+    }),
+  );
+  return bar;
+}
+
+function selectFigure(key: string | undefined): void {
+  selectedFigureKey = key;
+  const doc = ui.preview.contentDocument;
+  if (!doc) {
+    return;
+  }
+  doc.querySelectorAll<HTMLElement>("figure[data-fig]").forEach((fig) => {
+    const selected = fig.getAttribute("data-fig") === key;
+    fig.classList.toggle("mb-selected", selected);
+    fig.querySelector(".mb-fig-toolbar")?.remove();
+    if (selected) {
+      fig.appendChild(buildFigureToolbar(doc, fig, () => parseFigureAttrs(fig.getAttribute("data-fig-layout") ?? "")));
+    }
+  });
+}
+
+// ---- 素材のドロップ（プレビューへ） ------------------------------------------------------------
+
+let previewDropBound: Document | undefined;
+
+function enablePreviewDrop(): void {
+  const doc = ui.preview.contentDocument;
+  if (!doc || previewDropBound === doc) {
+    return;
+  }
+  previewDropBound = doc;
+  let marker: HTMLElement | undefined;
+  const clearMarker = () => {
+    marker?.remove();
+    marker = undefined;
+  };
+  doc.addEventListener("dragover", (event) => {
+    if (!event.dataTransfer?.types.includes(ASSET_DRAG_TYPE)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!coverSelected) {
+      const target = findDropTarget(doc, event.clientY);
+      clearMarker();
+      if (target) {
+        marker = doc.createElement("div");
+        marker.className = "mb-drop-marker";
+        const rect = target.getBoundingClientRect();
+        marker.style.top = `${rect.top + doc.defaultView!.scrollY - 4}px`;
+        doc.body.appendChild(marker);
+      }
+    }
+  });
+  doc.addEventListener("dragleave", clearMarker);
+  doc.addEventListener("drop", (event) => {
+    const name = event.dataTransfer?.getData(ASSET_DRAG_TYPE);
+    clearMarker();
+    if (!name) {
+      return;
+    }
+    event.preventDefault();
+    dropAssetIntoPreview(doc, name, event.clientX, event.clientY);
+  });
+}
+
+/** ドロップ位置の直後に来るブロック（data-line / data-step 付きの要素） */
+function findDropTarget(doc: Document, clientY: number): HTMLElement | undefined {
+  const blocks = Array.from(doc.querySelectorAll<HTMLElement>("[data-line], [data-step]"));
+  return blocks.find((el) => el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2 > clientY);
+}
+
+function dropAssetIntoPreview(doc: Document, name: string, clientX: number, clientY: number): void {
+  if (!assembled) {
+    return;
+  }
+  if (coverSelected) {
+    const page = doc.querySelector<HTMLElement>("[data-mb-cover]");
+    if (!page) {
+      return;
+    }
+    const rect = page.getBoundingClientRect();
+    const scale = rect.width / COVER_PAGE.width;
+    addCoverElement("image", "", name, {
+      x: Math.max(0, Math.round(((clientX - rect.left) / scale - 25) * 2) / 2),
+      y: Math.max(0, Math.round(((clientY - rect.top) / scale) * 2) / 2),
+    });
+    return;
+  }
+  const chapter = assembled.manual.chapters[currentIndex];
+  if (!chapter) {
+    return;
+  }
+  const target = findDropTarget(doc, clientY);
+  if (chapter.kind === "markdown") {
+    const lines = sourceEditor.getText().split("\n");
+    const snippet = `![${name.replace(/\.[^.]+$/, "")}](${name})`;
+    let at = lines.length;
+    const lineAttr = target?.getAttribute("data-line");
+    if (lineAttr) {
+      at = Math.max(0, Number(lineAttr) - 1);
+    }
+    const insert: string[] = [];
+    if (at > 0 && lines[at - 1].trim() !== "") {
+      insert.push("");
+    }
+    insert.push(snippet);
+    if (at < lines.length && lines[at].trim() !== "") {
+      insert.push("");
+    }
+    lines.splice(at, 0, ...insert);
+    const text = lines.join("\n");
+    sourceEditor.setText(text);
+    onSourceChanged(text);
+    logMessage(`図を差し込みました: ${name}（${at + 1} 行目）`);
+    return;
+  }
+  if (chapter.kind === "steps") {
+    try {
+      const value: unknown = JSON.parse(sourceEditor.getText());
+      if (!isStepsData(value)) {
+        throw new Error("手順 JSON ではありません");
+      }
+      const stepAttr = target?.getAttribute("data-step") ?? target?.closest("[data-step]")?.getAttribute("data-step");
+      const index = stepAttr ? Number(stepAttr) - 1 : value.steps.length - 1;
+      const step = value.steps[Math.max(0, Math.min(index, value.steps.length - 1))];
+      if (!step) {
+        throw new Error("手順がありません");
+      }
+      step.images = [...(step.images ?? []), name];
+      const text = `${JSON.stringify(value, null, 2)}\n`;
+      sourceEditor.setText(text);
+      onSourceChanged(text);
+      logMessage(`手順 ${index + 1} に画像を追加しました: ${name}`);
+    } catch (error) {
+      logMessage(`画像を追加できませんでした: ${(error as Error).message}`, "error");
+    }
+    return;
+  }
+  logMessage("この章（メニュー一覧）には図を置けません", "warn");
+}
+
+// ---- 書式ツールバー（Markdown） -----------------------------------------------------------
+
+const FONT_FAMILIES: Record<string, string> = {
+  sans: "'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif",
+  serif: "'Yu Mincho', 'Noto Serif JP', 'Hiragino Mincho ProN', serif",
+  mono: "Consolas, 'BIZ UDGothic', 'MS Gothic', monospace",
+};
+
+function applyFormat(fmt: string): void {
+  switch (fmt) {
+    case "bold":
+      return sourceEditor.wrapSelection("**", "**");
+    case "italic":
+      return sourceEditor.wrapSelection("*", "*");
+    case "underline":
+      return sourceEditor.wrapSelection("<u>", "</u>");
+    case "strike":
+      return sourceEditor.wrapSelection("~~", "~~");
+    case "code":
+      return sourceEditor.wrapSelection("`", "`");
+    case "color":
+      return sourceEditor.wrapSelection(`<span style="color:${ui.fmtColor.value}">`, "</span>");
+    case "bg":
+      return sourceEditor.wrapSelection(`<span style="background:${ui.fmtBg.value}">`, "</span>");
+    case "h2":
+      return sourceEditor.prefixLines("## ");
+    case "h3":
+      return sourceEditor.prefixLines("### ");
+    case "ul":
+      return sourceEditor.prefixLines("- ");
+    case "ol":
+      return sourceEditor.prefixLines((i) => `${i + 1}. `);
+    case "quote":
+      return sourceEditor.prefixLines("> ");
+    case "chips":
+      return sourceEditor.insertBlock("[[chips:m_tabs:F10, m_option1:F1]]");
+    case "table":
+      return sourceEditor.insertBlock("| 項目 | 内容 |\n|---|---|\n| | |");
+    case "meta":
+      return sourceEditor.insertBlock('<div class="meta">出典：</div>');
+    default:
+      return;
+  }
+}
+
+function setupFormatToolbar(): void {
+  ui.formatToolbar.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
+    if (!button) {
+      return;
+    }
+    const color = button.getAttribute("data-color");
+    if (color) {
+      ui.fmtColor.value = color;
+      sourceEditor.wrapSelection(`<span style="color:${color}">`, "</span>");
+      return;
+    }
+    const fmt = button.getAttribute("data-fmt");
+    if (fmt) {
+      applyFormat(fmt);
+    }
+  });
+  ui.fmtFont.addEventListener("change", () => {
+    const family = FONT_FAMILIES[ui.fmtFont.value];
+    if (family) {
+      sourceEditor.wrapSelection(`<span style="font-family:${family}">`, "</span>");
+    }
+    ui.fmtFont.value = "";
+  });
+  ui.fmtSize.addEventListener("change", () => {
+    if (ui.fmtSize.value) {
+      sourceEditor.wrapSelection(`<span style="font-size:${ui.fmtSize.value}">`, "</span>");
+    }
+    ui.fmtSize.value = "";
+  });
 }
 
 // ---- 書き出し・印刷 -------------------------------------------------------------
@@ -1335,6 +1829,7 @@ async function submitNewProject(): Promise<void> {
 // ---- イベント登録 -----------------------------------------------------------------
 
 function setupEvents(): void {
+  setupFormatToolbar();
   ui.openRoot.addEventListener("click", () => void pickRoot());
   ui.welcomeOpen.addEventListener("click", () => void pickRoot());
   ui.welcomeReconnect.addEventListener("click", () => void reconnectSavedRoot(true));
@@ -1425,6 +1920,9 @@ declare global {
       scrollSourceToEnd(): void;
       sourceText(): string;
       selectCover(): Promise<void>;
+      dropAsset(name: string, clientX: number, clientY: number): void;
+      applyFormat(fmt: string): void;
+      selectRange(from: number, to: number): void;
     };
   }
 }
@@ -1441,6 +1939,16 @@ window.manualBuilder = {
   },
   sourceText: () => sourceEditor.getText(),
   selectCover,
+  applyFormat,
+  selectRange(from, to) {
+    sourceEditor.view.dispatch({ selection: { anchor: from, head: to } });
+  },
+  dropAsset(name, clientX, clientY) {
+    const doc = ui.preview.contentDocument;
+    if (doc) {
+      dropAssetIntoPreview(doc, name, clientX, clientY);
+    }
+  },
 };
 
 start().catch((error: Error) => {
