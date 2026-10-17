@@ -97,6 +97,12 @@ describe("buildManualHtml（単体出力）", () => {
     expect(warnings).toEqual(["章「操作」: 図 missing.svg が見つかりません"]);
   });
 
+  it("documentTitle を渡すと <title> がそれになる（ファイル名の既定値に使う）", () => {
+    const { html } = buildManualHtml(makeManual(), { css: "", documentTitle: "my-manual" });
+    expect(html).toContain("<title>my-manual</title>");
+    expect(html).not.toContain("<title>テスト&lt;マニュアル&gt;</title>");
+  });
+
   it("章が 1 つなら h1 と .sub の直後に章内目次（h2 のみ）を入れる", () => {
     const manual = makeManual();
     manual.chapters = [md("c1", "x", "a.md", "---\ntitle: 単体\nsubtitle: サブ\n---\n\n## 一\n\n## 二")];

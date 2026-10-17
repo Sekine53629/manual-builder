@@ -1,11 +1,11 @@
 // CLI: プロジェクトの manual.json（manifest）から、ブラウザ版と同じ core でマニュアル HTML を生成する
 //
 //   npm run build:cli                                  # scripts → .cli/build-cli.js にバンドル
-//   node .cli/build-cli.js <manual.json> [出力.html]     # 出力省略時は <プロジェクト>/output/<title>_<YYYYMMDD>.html
+//   node .cli/build-cli.js <manual.json> [出力.html]     # 出力省略時は <プロジェクト>/output/<フォルダ名>_<YYYYMMDD>.html
 //
 // manifest の形式は src/core/project.ts と README.md「CLI で生成する」を参照。
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import { buildManualHtml } from "../src/core/export";
 import { assembleManual, imageMimeType, isManifest, PROJECT_LAYOUT, type ProjectFiles } from "../src/core/project";
@@ -71,10 +71,12 @@ async function main(): Promise<void> {
       throw new Error(`${manifestPath}: manifest（title + chapters）ではありません`);
     }
     const { manual, warnings: loadWarnings } = await assembleManual(manifest, fsFiles(baseDir));
-    const { html, warnings } = buildManualHtml(manual, { css: manualCss });
+    // 出力名と文書の <title> はマニュアル（プロジェクト）のフォルダ名に揃える
+    const projectName = basename(baseDir);
+    const { html, warnings } = buildManualHtml(manual, { css: manualCss, documentTitle: projectName });
     const outPath = outArg
       ? resolve(outArg)
-      : join(baseDir, PROJECT_LAYOUT.output, `${manual.title}_${manual.revisedOn.replace(/-/g, "")}.html`);
+      : join(baseDir, PROJECT_LAYOUT.output, `${projectName}_${manual.revisedOn.replace(/-/g, "")}.html`);
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, html, "utf8");
     [...loadWarnings, ...warnings].forEach((w) => console.warn(`[warn] ${w}`));

@@ -66,7 +66,7 @@ npm run dev        # 開発サーバを起動（表示された URL を Chrome /
    - 左ペインの素材一覧から図をプレビューへドラッグ＆ドロップすると、その位置に差し込まれる
    - 章一覧の先頭「表紙」をクリックすると表紙デザイン。要素をドラッグで移動、右下のつまみで幅変更、「＋」で画像・テキスト・帯を追加、要素を選んで Delete で削除。色や文字サイズはソース（cover.json）で編集
 5. 素材（.md / .json / .png / .svg / .txt）はドロップゾーンに落とすとプロジェクトフォルダに保存される
-6. 「HTML を書き出す」で `output/` に保存、「印刷 / PDF」でブラウザの印刷ダイアログ
+6. 「HTML を書き出す」で `output/<フォルダ名>_<日付>.html` に保存、「印刷 / PDF」でブラウザの印刷ダイアログ（PDF の既定の保存名もフォルダ名になります）
 
 手元のエディタで `chapters/*.md` を直接編集してもかまいません。アプリ側は「再読込」で読み直します。
 
@@ -74,7 +74,7 @@ npm run dev        # 開発サーバを起動（表示された URL を Chrome /
 
 ```powershell
 npm run build:cli                                        # scripts/build-cli.ts → .cli/build-cli.js
-node .cli/build-cli.js projects/sample/manual.json       # → projects/sample/output/<title>_<date>.html
+node .cli/build-cli.js projects/sample/manual.json       # → projects/sample/output/<フォルダ名>_<date>.html
 node .cli/build-cli.js projects/sample/manual.json out.html
 ```
 

@@ -10,6 +10,11 @@ export { escapeHtml } from "./html";
 export interface ExportOptions {
   /** 出力 HTML に埋め込む CSS */
   css: string;
+  /**
+   * 文書の <title>。省略時はマニュアル名。
+   * ブラウザの「PDF に保存」はこの値を既定のファイル名にするので、フォルダ名を渡すと保存名を揃えられる
+   */
+  documentTitle?: string;
 }
 
 export interface ExportResult {
@@ -28,7 +33,7 @@ export function buildManualHtml(manual: Manual, options: ExportOptions): ExportR
   try {
     const rendered = renderManual(manual);
     const warnings = rendered.flatMap((r) => r.warnings.map((w) => `章「${chapterTitle(r.chapter)}」: ${w}`));
-    const title = escapeHtml(manual.title);
+    const title = escapeHtml(options.documentTitle ?? manual.title);
 
     const body = manual.book ? buildBookBody(manual, rendered) : buildPlainBody(manual, rendered);
     const html = wrapDocument(title, options.css, manual.book ? "book" : "plain", body);

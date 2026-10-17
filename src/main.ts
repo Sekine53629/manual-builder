@@ -1681,10 +1681,11 @@ async function exportHtml(): Promise<void> {
   }
   try {
     await flushWrites();
-    const { html, warnings } = buildManualHtml(assembled.manual, { css: manualCss });
+    // 出力名はマニュアル（プロジェクト）のフォルダ名に揃える。文書の <title> も同じにして「PDF に保存」の既定名を揃える
+    const { html, warnings } = buildManualHtml(assembled.manual, { css: manualCss, documentTitle: project.name });
     reportWarnings(warnings);
     const date = assembled.manual.revisedOn.replace(/-/g, "");
-    const path = `${PROJECT_LAYOUT.output}/${assembled.manual.title}_${date}.html`;
+    const path = `${PROJECT_LAYOUT.output}/${project.name}_${date}.html`;
     await project.writeText(path, html);
     logMessage(`書き出しました: ${project.name}/${path}`);
   } catch (error) {
@@ -1697,7 +1698,7 @@ function printManual(): void {
     return;
   }
   try {
-    const { html } = buildManualHtml(assembled.manual, { css: manualCss });
+    const { html } = buildManualHtml(assembled.manual, { css: manualCss, documentTitle: project?.name });
     const frame = ui.printFrame;
     frame.hidden = false;
     frame.style.position = "fixed";

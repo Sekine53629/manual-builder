@@ -61,7 +61,7 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
 - Everything that ends up in the exported HTML goes through DOMPurify first. Never concatenate raw user input.
 - Errors: core functions log with `[functionName]` prefix and rethrow; `main.ts` turns them into message-list
   entries. No silent catches.
-- Exported file: `output/<title>_<YYYYMMDD>.html` inside the project (Tier 1 distribution naming).
+- Exported file: `output/<project folder name>_<YYYYMMDD>.html` inside the project; the document `<title>` is set to the folder name too (`ExportOptions.documentTitle`) so "Save as PDF" defaults to the same name.
 
 ## Commands
 
