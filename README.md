@@ -36,10 +36,12 @@ Markdown（原稿）・手順 JSON・メニュー定義 JSON・SVG/PNG（図・�
 
 | 版 | 入手方法 | 必要なもの |
 |---|---|---|
-| **単一ファイル版（オフライン）** | [Releases](https://github.com/Sekine53629/manual-builder/releases) の `manual-builder.html` をダウンロードし、ダブルクリックで開く | Chrome / Edge だけ。Node・Web サーバー・インストール不要 |
+| **単一ファイル版（オフライン）** | [Releases](https://github.com/Sekine53629/manual-builder/releases) の `editor-standalone_<日付>.zip` を展開し、`start-local.cmd` をダブルクリック（PowerShell のローカルサーバーが `http://localhost:8790/` で開く） | Chrome / Edge と Windows 標準の PowerShell。Node・外部サーバー・インストール不要 |
 | **公開サイト版** | https://sekine53629.github.io/manual-builder/ を開く | Chrome / Edge とインターネット接続 |
 
-どちらも中身は同じで、素材（`projects/`）は各自の PC のフォルダに置いたまま使います。社内で配るなら単一ファイル版をファイルサーバーやメールで渡すだけで済みます。
+どちらも中身は同じで、素材（`projects/`）は各自の PC のフォルダに置いたまま使います。社内で配るなら単一ファイル版の zip をファイルサーバーやメールで渡すだけで済みます。
+
+**注意**: `manual-builder.html` を直接ダブルクリック（`file://`）で開くと、閲覧と読み込みはできますが、ブラウザのセキュリティポリシーで**ファイルの保存が拒否されます**（`Aborted due to security policy`）。編集・書き出しをするときは `start-local.cmd` から `http://localhost` で開いてください。
 
 ## セットアップ（開発する場合）
 
@@ -104,8 +106,8 @@ npm run preview        # ビルド結果を確認
 npm run package        # output/deploy/ に editor-standalone / editor / editor-with-projects の zip を作る
 ```
 
-`dist/` の分割ビルドは ES モジュールを使うため `file://` では開けませんが、`dist/manual-builder.html`（単一ファイル版）はダブルクリックで開けます。
-公開サイト版は HTTPS（または `http://localhost`）で配信してください。
+`dist/` の分割ビルドは ES モジュールを使うため `file://` では開けません。`dist/manual-builder.html`（単一ファイル版）は `file://` でも開けますが保存ができないため、
+同梱の `start-local.cmd`（[scripts/serve-local.ps1](scripts/serve-local.ps1)）で `http://localhost` から開きます。公開サイト版は HTTPS で配信してください。
 
 - **GitHub Pages**: `main` への push で [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) がテスト・ビルドを行い、エディタ本体を Pages に公開します。
   公開されるのはエディタだけで、マニュアルの素材（`projects/`）は各自の PC のフォルダに置いたまま使います

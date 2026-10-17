@@ -30,6 +30,7 @@ manual set in `input/reference/pdf/`. Decision records: `docs/adr/0001-…`, `00
 | `src/editor-panes.ts` / `src/scroll-sync.ts` | CodeMirror wrapper; line-based scroll sync between panes | `interpolate()` is unit-tested |
 | `src/storage.ts` | Settings (root handle) in IndexedDB | Browser only |
 | `scripts/build-cli.ts` | CLI: `manual.json` → HTML, using `src/core/` | Node only; installs jsdom globals before rendering |
+| `scripts/serve-local.ps1` + `start-local.cmd` | Zero-install local static server (PowerShell `TcpListener`) bundled with the deploy zips | Needed because Chrome refuses File System Access **writes** from `file://` pages ("Aborted due to security policy"); reads work. Always open the editor over `http://localhost` or HTTPS |
 | `src/styles/manual.css` | Embedded in the exported manual (screen + print, A4) | Imported via `?raw`; self-contained (no `@import`, no URLs). Based on `input/styles/manual.css` |
 | `projects/` | Save folder. `projects/sample/` is the committed generic sample; everything else is git-ignored (confidential) | Project layout: `manual.json`, `cover.json` (optional), `chapters/`, `images/`, `catalog/`, `output/` (`PROJECT_LAYOUT`) |
 | `input/` | User-provided originals (not committed, read-only) | Never edit. Real materials are copied (not moved) into a git-ignored project under `projects/` |
