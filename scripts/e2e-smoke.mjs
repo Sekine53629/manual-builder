@@ -143,7 +143,8 @@ async function main() {
       if (msg.method === "Runtime.exceptionThrown") consoleErrors.push(msg.params.exceptionDetails.text + " " + (msg.params.exceptionDetails.exception?.description ?? ""));
       if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error") consoleErrors.push(msg.params.args.map((a) => a.value ?? a.description).join(" ")); });
 
-    await waitFor(cdp, `document.querySelector("#welcome") !== null`);
+    // 静的 HTML は先に届くので、アプリのスクリプト（window.manualBuilder）が動き出すまで待つ
+    await waitFor(cdp, `document.querySelector("#welcome") !== null && typeof window.manualBuilder === "object"`, 30000);
     check("ようこそ画面が表示される", await cdp.eval(`!document.querySelector("#welcome").hidden`));
 
     // 偽フォルダを注入して「保存フォルダを開く」
