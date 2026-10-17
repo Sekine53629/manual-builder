@@ -24,9 +24,18 @@ Markdown（原稿）・手順 JSON・メニュー定義 JSON・SVG/PNG（図・�
 - プレビュー、印刷（PDF 保存）、`output/<マニュアル名>_<YYYYMMDD>.html` への書き出し
 - CLI（Node）で同じフォルダから同じ HTML を一括生成
 
-## セットアップ
+## 配布形態（2 つの版）
 
-Node.js 18 以上が必要です。
+| 版 | 入手方法 | 必要なもの |
+|---|---|---|
+| **単一ファイル版（オフライン）** | [Releases](https://github.com/Sekine53629/manual-builder/releases) の `manual-builder.html` をダウンロードし、ダブルクリックで開く | Chrome / Edge だけ。Node・Web サーバー・インストール不要 |
+| **公開サイト版** | https://sekine53629.github.io/manual-builder/ を開く | Chrome / Edge とインターネット接続 |
+
+どちらも中身は同じで、素材（`projects/`）は各自の PC のフォルダに置いたまま使います。社内で配るなら単一ファイル版をファイルサーバーやメールで渡すだけで済みます。
+
+## セットアップ（開発する場合）
+
+Node.js 18 以上が必要です。利用するだけなら不要です。
 
 ```powershell
 cd JavaScript\manual-builder
@@ -77,13 +86,14 @@ PDF にするには、生成した HTML を Chrome で開いて印刷（A4）す
 ### 配布用ビルドとデプロイ
 
 ```powershell
-npm run build      # dist/ に静的ファイルを出力
-npm run preview    # ビルド結果を確認
-npm run package    # output/deploy/ に editor_<日付>.zip（エディタのみ）と editor-with-projects_<日付>.zip（projects/ 同梱）を作る
+npm run build          # dist/ に静的ファイルを出力（公開サイト版）
+npm run build:single   # dist/manual-builder.html に 1 ファイルへまとめる（単一ファイル版）
+npm run preview        # ビルド結果を確認
+npm run package        # output/deploy/ に editor-standalone / editor / editor-with-projects の zip を作る
 ```
 
-`dist/` は ES モジュールを使うため、`file://` で直接開くことはできません。
-社内 Web サーバーなど HTTPS（または `http://localhost`）で配信してください。File System Access API は安全なコンテキストでのみ使えます。
+`dist/` の分割ビルドは ES モジュールを使うため `file://` では開けませんが、`dist/manual-builder.html`（単一ファイル版）はダブルクリックで開けます。
+公開サイト版は HTTPS（または `http://localhost`）で配信してください。
 
 - **GitHub Pages**: `main` への push で [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) がテスト・ビルドを行い、エディタ本体を Pages に公開します。
   公開されるのはエディタだけで、マニュアルの素材（`projects/`）は各自の PC のフォルダに置いたまま使います

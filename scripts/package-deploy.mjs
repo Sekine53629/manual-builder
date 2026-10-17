@@ -1,5 +1,6 @@
 // デプロイ用の成果物を output/deploy/ に作る
 //   editor_<日付>.zip            … エディタ本体（dist/）だけ。任意の静的 Web サーバーに置く
+//   editor-standalone_<日付>.zip  … 単一ファイル版（manual-builder.html）。ダブルクリックで開ける。Node・サーバー不要
 //   editor-with-projects_<日付>.zip … エディタ本体 + projects/（手元の全プロジェクト）。PC 間の移行用
 //
 //   npm run build && node scripts/package-deploy.mjs
@@ -15,7 +16,11 @@ const DATE = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
 const README = `# Manual Builder（デプロイ用）
 
-## app/
+## manual-builder.html（単一ファイル版）
+ダブルクリックで Chrome / Edge で開きます。インストール・Node・Web サーバーは不要です。
+初回に「保存フォルダを開く」で projects/ を選ぶと、次回からは「前回のフォルダに再接続」で続きができます。
+
+## app/（公開サイト版）
 エディタ本体（静的ファイル）。ES モジュールを使うため file:// では開けません。
 任意の静的 Web サーバー（社内 Web サーバー、GitHub Pages、IIS、nginx など）の
 フォルダに app/ の中身を置き、HTTPS または http://localhost で開いてください。
@@ -53,6 +58,19 @@ function main() {
   }
   mkdirSync(OUT, { recursive: true });
 
+  const single = join(DIST, "manual-builder.html");
+  if (!existsSync(single)) {
+    throw new Error("dist/manual-builder.html がありません。先に npm run build:single を実行してください");
+  }
+  const stage0 = join(OUT, "_stage-standalone");
+  rmSync(stage0, { recursive: true, force: true });
+  mkdirSync(stage0, { recursive: true });
+  cpSync(single, join(stage0, "manual-builder.html"));
+  writeFileSync(join(stage0, "README.md"), README, "utf8");
+  const zip0 = join(OUT, `editor-standalone_${DATE}.zip`);
+  zip(stage0, zip0);
+  rmSync(stage0, { recursive: true, force: true });
+
   const stage1 = join(OUT, "_stage-editor");
   rmSync(stage1, { recursive: true, force: true });
   mkdirSync(join(stage1, "app"), { recursive: true });
@@ -66,13 +84,14 @@ function main() {
   rmSync(stage2, { recursive: true, force: true });
   mkdirSync(join(stage2, "app"), { recursive: true });
   cpSync(DIST, join(stage2, "app"), { recursive: true });
+  cpSync(single, join(stage2, "manual-builder.html"));
   cpSync(PROJECTS, join(stage2, "projects"), { recursive: true });
   writeFileSync(join(stage2, "README.md"), README, "utf8");
   const zip2 = join(OUT, `editor-with-projects_${DATE}.zip`);
   zip(stage2, zip2);
   rmSync(stage2, { recursive: true, force: true });
 
-  for (const z of [zip1, zip2]) {
+  for (const z of [zip0, zip1, zip2]) {
     console.log(`${z}  (${(statSync(z).size / 1024).toFixed(0)} KB)`);
   }
   console.log(`projects/ の合計: ${(sizeOf(PROJECTS) / 1024).toFixed(0)} KB`);

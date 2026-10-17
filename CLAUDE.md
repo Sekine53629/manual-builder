@@ -64,6 +64,7 @@ npm run dev        # dev server
 npm test           # vitest run
 npm run typecheck  # tsc --noEmit
 npm run build      # dist/
+npm run build:single  # dist/manual-builder.html (single-file edition, opens from file://)
 npm run build:cli  # .cli/build-cli.js
 node .cli/build-cli.js projects/<name>/manual.json [out.html]
 npm run e2e        # headless Chrome smoke test (needs: npm run build && npx vite preview --port 4173)

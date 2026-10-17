@@ -14,7 +14,8 @@
     "build:cli": "vite build --ssr scripts/build-cli.ts --outDir .cli",
     "cli": "node .cli/build-cli.js",
     "e2e": "node scripts/e2e-smoke.mjs",
-    "package": "node scripts/package-deploy.mjs"
+    "package": "node scripts/make-single-file.mjs && node scripts/package-deploy.mjs",
+    "build:single": "node scripts/make-single-file.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",
