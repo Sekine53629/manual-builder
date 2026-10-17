@@ -12,7 +12,8 @@ const ROOT = resolve(import.meta.dirname, "..");
 const DIST = join(ROOT, "dist");
 const PROJECTS = join(ROOT, "projects");
 const OUT = join(ROOT, "output", "deploy");
-const DATE = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+// ローカル日付（UTC だと日本時間の夜に前日になってしまう）
+const DATE = new Date().toLocaleDateString("sv-SE").replace(/-/g, "");
 
 const README = `# Manual Builder（デプロイ用）
 
