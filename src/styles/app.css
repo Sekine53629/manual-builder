@@ -576,6 +576,20 @@ select {
   margin-top: 12px;
 }
 
+.saved-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: var(--color-accent-tint);
+  border: 1px solid #f3c27a;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.welcome-actions button:not(.primary) {
+  background: var(--color-panel);
+}
+
 .editor {
   display: flex;
   flex-direction: column;

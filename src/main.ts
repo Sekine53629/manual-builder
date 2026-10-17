@@ -98,6 +98,9 @@ const ui = {
   welcomeUnsupported: byId<HTMLElement>("welcome-unsupported"),
   welcomeOpen: byId<HTMLButtonElement>("welcome-open-button"),
   welcomeReconnect: byId<HTMLButtonElement>("welcome-reconnect-button"),
+  welcomeSaved: byId<HTMLElement>("welcome-saved"),
+  welcomeSavedName: byId<HTMLElement>("welcome-saved-name"),
+  reconnect: byId<HTMLButtonElement>("reconnect-button"),
   editor: byId<HTMLElement>("editor"),
   viewSourceButton: byId<HTMLButtonElement>("view-source-button"),
   viewHtmlButton: byId<HTMLButtonElement>("view-html-button"),
@@ -1729,6 +1732,7 @@ function setProjectControlsEnabled(enabled: boolean): void {
 async function openRoot(handle: FileSystemDirectoryHandle): Promise<void> {
   root = handle;
   ui.rootName.textContent = handle.name;
+  setReconnectUi(undefined);
   ui.newProject.disabled = false;
   ui.reload.disabled = false;
   await refreshProjectList();
@@ -1807,23 +1811,77 @@ async function pickRoot(): Promise<void> {
   }
 }
 
+/** 「前回のフォルダに再接続」の案内を出す／消す */
+function setReconnectUi(savedName: string | undefined): void {
+  const show = savedName !== undefined;
+  ui.welcomeSaved.hidden = !show;
+  ui.welcomeReconnect.hidden = !show;
+  ui.reconnect.hidden = !show;
+  ui.welcomeOpen.classList.toggle("primary", !show);
+  if (show) {
+    ui.welcomeSavedName.textContent = savedName;
+    ui.rootName.textContent = `${savedName}（再接続が必要）`;
+  }
+}
+
+let reconnectPending = false;
+
+/**
+ * 記憶している保存フォルダに接続する。
+ * ブラウザはフォルダへの許可をユーザー操作の中でしか求められないため、
+ * 起動時（request=false）は許可が残っていれば自動で開き、無ければ案内を出して最初のクリックで取り直す
+ */
 async function reconnectSavedRoot(request: boolean): Promise<boolean> {
+  if (reconnectPending) {
+    return false;
+  }
+  reconnectPending = true;
   try {
     const saved = await loadSavedRoot();
     if (!saved) {
+      if (!request) {
+        logMessage("記憶している保存フォルダはありません。「保存フォルダを開く」で選んでください");
+      }
       return false;
     }
     if (await ensurePermission(saved, request)) {
       await openRoot(saved);
+      logMessage(`前回の保存フォルダに接続しました: ${saved.name}`);
       return true;
     }
-    ui.welcomeReconnect.hidden = false;
-    ui.rootName.textContent = `${saved.name}（再接続が必要）`;
+    setReconnectUi(saved.name);
+    if (!request) {
+      logMessage(`前回の保存フォルダ「${saved.name}」を記憶しています。クリックして再接続してください`);
+      armReconnectOnFirstClick();
+    } else {
+      logMessage(`「${saved.name}」へのアクセスが許可されませんでした。もう一度「前回のフォルダに再接続」を押すか、「保存フォルダを開く」で選び直してください`, "warn");
+    }
     return false;
   } catch (error) {
-    logMessage(`前回のフォルダに接続できませんでした: ${(error as Error).message}`, "warn");
+    logMessage(`前回のフォルダに接続できませんでした: ${(error as Error).message}。「保存フォルダを開く」で選び直してください`, "warn");
+    setReconnectUi(undefined);
     return false;
+  } finally {
+    reconnectPending = false;
   }
+}
+
+/** 最初のクリック（ユーザー操作）で許可を取り直す。「保存フォルダを開く」を押したときは選び直しを優先する */
+function armReconnectOnFirstClick(): void {
+  const handler = (event: PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("#open-root-button, #welcome-open-button")) {
+      document.removeEventListener("pointerdown", handler, true);
+      return;
+    }
+    if (ui.reconnect.hidden && ui.welcomeReconnect.hidden) {
+      document.removeEventListener("pointerdown", handler, true);
+      return;
+    }
+    document.removeEventListener("pointerdown", handler, true);
+    void reconnectSavedRoot(true);
+  };
+  document.addEventListener("pointerdown", handler, true);
 }
 
 async function submitNewProject(): Promise<void> {
@@ -1852,6 +1910,7 @@ function setupEvents(): void {
   ui.openRoot.addEventListener("click", () => void pickRoot());
   ui.welcomeOpen.addEventListener("click", () => void pickRoot());
   ui.welcomeReconnect.addEventListener("click", () => void reconnectSavedRoot(true));
+  ui.reconnect.addEventListener("click", () => void reconnectSavedRoot(true));
   ui.projectSelect.addEventListener("change", () => void openProject(ui.projectSelect.value));
   ui.reload.addEventListener("click", () => void reloadProject());
   ui.newProject.addEventListener("click", () => {

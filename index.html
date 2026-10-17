@@ -11,6 +11,7 @@
     <h1 class="app-title">Manual Builder</h1>
     <div class="project-bar">
       <button id="open-root-button" type="button" title="プロジェクトを保存するフォルダを選びます">保存フォルダを開く</button>
+      <button id="reconnect-button" type="button" class="primary" hidden title="前回使った保存フォルダに、ブラウザの許可を取り直して接続します">前回のフォルダに再接続</button>
       <span id="root-name" class="root-name"></span>
       <label class="inline-field"><span>プロジェクト</span>
         <select id="project-select"></select>
@@ -78,10 +79,15 @@
         <p>マニュアルは「保存フォルダ」の中にプロジェクトごとのフォルダ（<code>manual.json</code> + <code>chapters/</code> + <code>images/</code> + <code>catalog/</code> + <code>output/</code>）として保存されます。
           このリポジトリの <code>projects/</code> フォルダを選ぶと、サンプル（<code>sample</code>）が開けます。</p>
         <p id="welcome-unsupported" class="warn" hidden>このブラウザはフォルダへの保存（File System Access API）に対応していません。Chrome または Edge で開いてください。</p>
-        <div class="welcome-actions">
-          <button id="welcome-open-button" type="button" class="primary">保存フォルダを開く</button>
-          <button id="welcome-reconnect-button" type="button" hidden>前回のフォルダに再接続</button>
+        <div id="welcome-saved" class="saved-note" hidden>
+          <b>前回の保存フォルダ「<span id="welcome-saved-name"></span>」を記憶しています。</b><br>
+          ブラウザの決まりで、フォルダへのアクセスは開き直すたびに許可が必要です。下のボタン（または画面のどこか）をクリックすると再接続します。
         </div>
+        <div class="welcome-actions">
+          <button id="welcome-reconnect-button" type="button" class="primary" hidden>前回のフォルダに再接続</button>
+          <button id="welcome-open-button" type="button" class="primary">保存フォルダを開く</button>
+        </div>
+        <p id="welcome-storage-note" class="hint">フォルダの記憶はブラウザごと・開き方（URL）ごとに保存されます。別の URL で開いたときや、ブラウザの「終了時にサイトデータを削除」が有効なときは、もう一度「保存フォルダを開く」で選び直してください。</p>
       </div>
 
       <div id="editor" class="editor" hidden>
