@@ -1,0 +1,45 @@
+{
+  "title": "サンプル業務マニュアル",
+  "subtitle": "Manual Builder の CLI（manifest）サンプル",
+  "author": "作成者名",
+  "version": "0.1",
+  "revisedOn": "2026-10-17",
+  "coverNotes": [
+    "次ページの目次をクリックすると、目的のマニュアルへ移動できます。"
+  ],
+  "book": true,
+  "catalog": "catalog/menus.json",
+  "menuTree": "catalog/menu-tree.txt",
+  "menus": {
+    "m_ctrl": {
+      "heading": "下段ショートカット（CTRL＋Fキー、全タブ共通）"
+    }
+  },
+  "images": [
+    "images"
+  ],
+  "chapters": [
+    {
+      "group": "基本",
+      "file": "catalog"
+    },
+    {
+      "group": "基本",
+      "file": "chapters/01-introduction.md"
+    },
+    {
+      "group": "操作",
+      "file": "chapters/steps-register.json"
+    },
+    {
+      "group": "操作",
+      "file": "chapters/02-operation.md"
+    },
+    {
+      "group": "操作",
+      "file": "chapters/03-chips.md",
+      "title": "操作経路チップのサンプル"
+    }
+  ],
+  "autoNumberGroups": true
+}

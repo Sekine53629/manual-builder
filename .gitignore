@@ -1,0 +1,49 @@
+# Secrets
+.env
+*.pem
+*.key
+credentials*.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Build artifacts
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+!archive/dist/
+.vite/
+
+# Data provided by the user (see Tier 1 "Project Initialization")
+input/*
+!input/README.md
+!input/.gitkeep
+
+# External reference files: only the catalog is committed (see Tier 1 "External Reference Management")
+references/*
+!references/catalog.csv
+!references/README.md
+archive/references/*
+!archive/references/.gitkeep
+
+# Generated manuals (hand-outs that were actually distributed go to archive/dist/)
+output/*
+!output/.gitkeep
+
+# CLI bundle (npm run build:cli)
+.cli/
+
+# Projects: user manuals live here (confidential); only the generic sample is committed
+projects/*
+!projects/README.md
+!projects/sample/
+projects/sample/output/*
+!projects/sample/output/.gitkeep

@@ -1,0 +1,715 @@
+/* 出力マニュアル（単一 HTML）に埋め込むスタイル。画面と印刷（A4）の両方に対応する。
+   既存の PDF 版マニュアルの見た目（input/styles/manual.css）を踏襲している */
+@page {
+  size: A4;
+  margin: 16mm 15mm 18mm 15mm;
+}
+
+:root {
+  --accent: #2b6cb0;
+  --accent-bg: #ebf4ff;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --muted-2: #777;
+  --border: #b8c4d0;
+  --th-bg: #f0f4f8;
+  --note-bg: #fff8e6;
+  --note-border: #e0a800;
+  --strong: #b42318;
+  --tab: #4a5568;
+  --ztab: #2c8c85;
+  --chip-border: #c7d0dc;
+  --page-width: 180mm;
+}
+
+html {
+  font-family: "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", "YuGothic", "Meiryo", "Hiragino Sans", system-ui, sans-serif;
+  font-size: 11pt;
+  line-height: 1.75;
+  color: var(--text);
+  background: #fff;
+}
+
+body {
+  margin: 0 auto;
+  padding: 16mm 15mm 24mm;
+  max-width: var(--page-width);
+  box-sizing: content-box;
+}
+
+/* ---- 見出し・本文 ------------------------------------------------------- */
+h1 {
+  font-size: 19pt;
+  line-height: 1.4;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 4px;
+  margin: 0 0 4px;
+}
+
+.sub {
+  color: #555;
+  font-size: 9pt;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+h2 {
+  font-size: 13.5pt;
+  background: var(--accent-bg);
+  border-left: 6px solid var(--accent);
+  padding: 4px 10px;
+  margin: 22px 0 8px;
+  break-after: avoid;
+}
+
+h3 {
+  font-size: 11pt;
+  color: var(--accent);
+  margin: 14px 0 4px;
+  break-after: avoid;
+}
+
+ol,
+ul {
+  margin: 4px 0 8px;
+  padding-left: 1.6em;
+}
+
+li {
+  margin: 2px 0;
+}
+
+p {
+  margin: 4px 0 8px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 6px 0 10px;
+  font-size: 9.5pt;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  vertical-align: top;
+  text-align: left;
+}
+
+th {
+  background: var(--th-bg);
+  text-align: center;
+  font-weight: 700;
+}
+
+blockquote {
+  margin: 6px 0;
+  padding: 6px 12px;
+  background: var(--note-bg);
+  border-left: 5px solid var(--note-border);
+}
+
+blockquote p {
+  margin: 2px 0;
+}
+
+.meta {
+  font-size: 8.5pt;
+  color: var(--muted-2);
+  margin: -2px 0 6px;
+}
+
+strong {
+  color: var(--strong);
+}
+
+code {
+  font-family: inherit;
+  background: #f3f3f3;
+  padding: 0 3px;
+}
+
+pre {
+  font-family: "Noto Sans Mono CJK JP", "BIZ UDGothic", "MS Gothic", Consolas, monospace;
+  font-size: 9pt;
+  line-height: 1.5;
+  background: #f7f9fb;
+  border: 1px solid #e3e8ee;
+  border-radius: 4px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+pre.tree {
+  break-inside: auto;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* ---- 単体出力の目次 ----------------------------------------------------- */
+.toc-inline {
+  border: 1px solid #ccd;
+  padding: 8px 14px;
+  margin: 8px 0 14px;
+  background: #fafbfd;
+  font-size: 9.5pt;
+}
+
+.toc-inline b {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.toc-inline ul {
+  margin: 0;
+  columns: 2;
+  padding-left: 1.4em;
+}
+
+.toc-inline a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.toc-inline a:hover {
+  text-decoration: underline;
+}
+
+.manual-header {
+  margin-bottom: 12px;
+}
+
+/* ---- フロー図（生 HTML）・要確認 ------------------------------------------- */
+.flow {
+  margin: 8px 0 14px;
+  text-align: center;
+}
+
+.fbox {
+  display: inline-block;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #f5f9ff;
+  font-weight: 600;
+  font-size: 10pt;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.fbox small {
+  font-weight: 400;
+  color: #444;
+  font-size: 8.5pt;
+}
+
+.flow > .fbox {
+  width: 70%;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.row .fbox {
+  flex: 1;
+}
+
+.fbox.g {
+  border-color: #2f855a;
+  background: #f0fff4;
+}
+
+.fbox.b {
+  border-color: var(--accent);
+}
+
+.fbox.o {
+  border-color: #c05621;
+  background: #fffaf0;
+}
+
+.fbox.r {
+  border-color: #c53030;
+  background: #fff5f5;
+}
+
+.arr {
+  color: var(--accent);
+  font-size: 12pt;
+  line-height: 1.2;
+  margin: 2px 0;
+}
+
+.todo {
+  border: 1px dashed #999;
+  background: #f7f7f7;
+  color: #555;
+  font-size: 9pt;
+  padding: 4px 8px;
+  margin: 6px 0;
+}
+
+/* ---- チップ（操作経路） ------------------------------------------------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.arrow {
+  color: #8a94a6;
+  font-size: 14pt;
+  margin: 0 1px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--chip-border);
+  border-radius: 7px;
+  padding: 3px 9px 3px 4px;
+  background: #fff;
+  font-size: 10.5pt;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.chip img {
+  height: 36px;
+  width: auto;
+  border-radius: 4px;
+}
+
+.k {
+  display: inline-block;
+  min-width: 26px;
+  text-align: center;
+  font-size: 8.5pt;
+  font-weight: bold;
+  color: #fff;
+  background: var(--tab);
+  border-radius: 4px;
+  padding: 1px 4px;
+  line-height: 1.4;
+}
+
+.chip.tab {
+  background: var(--tab);
+  color: #fff;
+  border-color: var(--tab);
+  padding: 3px 10px;
+}
+
+.chip.tab .k {
+  background: #fff;
+  color: var(--tab);
+}
+
+.chip.ztab {
+  background: var(--ztab);
+  color: #fff;
+  border-color: var(--ztab);
+  padding: 3px 10px;
+}
+
+.chip.ztab .k {
+  background: #fff;
+  color: var(--ztab);
+}
+
+.chip.key {
+  background: #f4f6f9;
+  padding: 3px 9px 3px 3px;
+}
+
+.chip.key .k {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid #9aa5b4;
+  border-bottom-width: 3px;
+}
+
+.chip.plain {
+  padding: 3px 9px;
+}
+
+.chip.missing {
+  border: 1px dashed #c53030;
+  color: #c53030;
+  background: #fff5f5;
+  font-size: 9pt;
+}
+
+.scr {
+  font-size: 8.5pt;
+  color: var(--muted);
+}
+
+.chips.legend .legend-label {
+  margin-right: 2px;
+}
+
+.chips.tabs {
+  gap: 6px 8px;
+}
+
+/* ---- 操作手順（steps） -------------------------------------------------- */
+.callout {
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin: 8px 0 12px;
+  break-inside: avoid;
+}
+
+.callout.use {
+  background: #f4f8fd;
+  border: 1px solid #d5e3f3;
+}
+
+.callout.caution {
+  background: var(--note-bg);
+  border-left: 5px solid var(--note-border);
+  border-radius: 0 6px 6px 0;
+}
+
+.callout b {
+  color: var(--text);
+}
+
+.callout-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.callout ul {
+  margin: 0;
+}
+
+ol.steps {
+  list-style: none;
+  padding-left: 0;
+  margin: 8px 0 12px;
+}
+
+li.step {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 10px;
+  break-inside: avoid;
+}
+
+.step-no {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 10pt;
+  line-height: 24px;
+  text-align: center;
+}
+
+.step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.step-text {
+  margin: 4px 0 6px;
+}
+
+.step-body .chips {
+  margin: 0 0 8px;
+}
+
+figure.shot {
+  margin: 0 0 10px;
+}
+
+figure.shot img {
+  display: block;
+  max-width: 100%;
+  border: 1px solid #d8dee6;
+}
+
+/* ---- メニュー構成とアイコン一覧 ------------------------------------------ */
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 10px;
+  border: 1px solid var(--chip-border);
+  border-radius: 8px;
+  background: #fff;
+  box-sizing: border-box;
+  break-inside: avoid;
+}
+
+.cell .pict {
+  height: 38px;
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.cell .lbl {
+  font-size: 10pt;
+  line-height: 1.4;
+}
+
+.cell .opens {
+  display: block;
+  color: var(--accent);
+  font-size: 8.5pt;
+}
+
+.cell.empty {
+  border-style: dashed;
+  background: #fafbfc;
+  color: #b4bcc8;
+}
+
+.cell.empty .k {
+  background: #d7dde6;
+  color: #fff;
+}
+
+.grid6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin: 6px 0 12px;
+}
+
+.fcell {
+  padding: 4px 8px;
+  border: 1px solid var(--chip-border);
+  border-radius: 6px;
+  background: #fff;
+  min-height: 40px;
+  box-sizing: border-box;
+  break-inside: avoid;
+}
+
+.fcell .fk {
+  display: block;
+  font-size: 8pt;
+  font-weight: 700;
+  color: #4a5568;
+  line-height: 1.3;
+}
+
+.fcell .fl {
+  display: block;
+  font-size: 9.5pt;
+  line-height: 1.3;
+}
+
+.fcell.empty {
+  background: #f7f9fb;
+  color: #b4bcc8;
+}
+
+.fcell.empty .fk {
+  color: #a9b2bf;
+}
+
+/* ---- 統合版: 表紙・目次・章バッジ ---------------------------------------- */
+.cover {
+  min-height: 240mm;
+}
+
+.cover-band {
+  background: var(--accent);
+  color: #fff;
+  padding: 44mm 10mm 12mm;
+  margin: 0 0 14mm;
+  border-radius: 2px;
+}
+
+.cover-title {
+  color: #fff;
+  font-size: 24pt;
+  border: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.cover-sub {
+  margin: 0;
+  font-size: 12pt;
+  color: #fff;
+}
+
+.cover-meta,
+.cover-note {
+  margin: 0 0 6px;
+  font-size: 10pt;
+}
+
+.cover-contents {
+  margin: 18px 0 6px;
+  color: var(--text);
+  font-size: 11pt;
+}
+
+.cover-list {
+  margin: 0;
+}
+
+.cover-list li {
+  margin: 3px 0;
+}
+
+nav.toc h2 {
+  background: none;
+  border-left: none;
+  border-bottom: 3px solid var(--accent);
+  padding: 0 0 4px;
+  margin: 0 0 12px;
+  font-size: 19pt;
+}
+
+.toc-group {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+  padding: 3px 8px;
+  margin: 10px 0 4px;
+  border-radius: 4px;
+}
+
+.toc-item {
+  padding: 2px 8px 2px 24px;
+}
+
+.toc-item a {
+  display: block;
+  border-bottom: 1px dotted #c3ccd6;
+}
+
+nav.toc a {
+  color: inherit;
+  text-decoration: none;
+}
+
+nav.toc a:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9pt;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 3px;
+  margin: 0 0 8px;
+}
+
+.book .doc {
+  margin-bottom: 36px;
+}
+
+.book .doc > h1 {
+  margin-top: 2px;
+}
+
+/* 統合版の h1 は PDF と同じく 19pt の下線タイトル（既定どおり） */
+
+/* ---- 図（SVG）・不足表示 ------------------------------------------------- */
+.manual-figure {
+  margin: 10px 0 14px;
+  text-align: center;
+}
+
+.manual-figure svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.manual-figure figcaption {
+  margin-top: 4px;
+  font-size: 9pt;
+  color: var(--muted);
+}
+
+.manual-figure-missing {
+  padding: 6px 10px;
+  margin: 8px 0;
+  color: #b91c1c;
+  border: 1px dashed #b91c1c;
+  font-size: 9.5pt;
+}
+
+/* ---- 印刷 ------------------------------------------------------------- */
+@media print {
+  body {
+    padding: 0;
+    max-width: none;
+  }
+
+  .cover {
+    min-height: 0;
+    break-after: page;
+  }
+
+  nav.toc {
+    break-after: page;
+  }
+
+  .book .doc {
+    break-before: page;
+    margin-bottom: 0;
+  }
+
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  .manual-figure,
+  .chips,
+  .callout,
+  .cell,
+  .fcell,
+  li.step,
+  .flow {
+    break-inside: avoid;
+  }
+
+  /* 表はページをまたいでよい。行の途中では切らず、見出し行を各ページで繰り返す */
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit;
+  }
+}

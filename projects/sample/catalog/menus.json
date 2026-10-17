@@ -1,0 +1,148 @@
+{
+  "meta": {
+    "title": "サンプル業務システム メニュー構成とアイコン一覧",
+    "sub": "2026-10-17 作成｜アイコンはサンプル素材",
+    "intro": "メニュー定義（menus + screens）の JSON から自動生成される章のサンプルです。",
+    "pending": [
+      "F2 以降のタブの中身"
+    ],
+    "pendingNote": "画面写真があれば同じ形式で追加できます。"
+  },
+  "menus": [
+    {
+      "id": "m_tabs",
+      "title": "メインメニュー 上部タブ",
+      "path": "起動画面",
+      "items": [
+        {
+          "ref": "m_tabs:F1",
+          "key": "F1",
+          "label": "窓口"
+        },
+        {
+          "ref": "m_tabs:F2",
+          "key": "F2",
+          "label": "集計"
+        },
+        {
+          "ref": "m_tabs:F12",
+          "key": "F12",
+          "label": "終了"
+        }
+      ]
+    },
+    {
+      "id": "m_ctrl",
+      "title": "下段ショートカット（CTRL＋Fキー）",
+      "path": "全タブ共通",
+      "items": [
+        {
+          "ref": "m_ctrl:CTRL+F1",
+          "key": "CTRL+F1",
+          "label": "日報印刷"
+        },
+        {
+          "ref": "m_ctrl:CTRL+F12",
+          "key": "CTRL+F12",
+          "label": "電源切断"
+        }
+      ]
+    },
+    {
+      "id": "m_sample",
+      "title": "窓口（F1）の業務メニュー",
+      "path": "メインタブ F1 窓口",
+      "items": [
+        {
+          "ref": "m_sample:F1",
+          "key": "F1",
+          "label": "患者登録",
+          "opens": "患者登録画面",
+          "pict": "images/m_sample_F1.png"
+        },
+        {
+          "ref": "m_sample:F2",
+          "key": "F2",
+          "label": "処方入力",
+          "opens": "処方入力画面",
+          "pict": "images/m_sample_F2.png"
+        },
+        {
+          "ref": "m_sample:F12",
+          "key": "F12",
+          "label": "終了"
+        }
+      ]
+    },
+    {
+      "id": "m_zaiko_tabs",
+      "title": "在庫メニュー 上部タブ",
+      "path": "窓口 > F9 在庫（別ウィンドウ）",
+      "intro": "別ウィンドウで開きます。",
+      "items": [
+        {
+          "ref": "m_zaiko_tabs:F1",
+          "key": "F1",
+          "label": "薬品情報"
+        },
+        {
+          "ref": "m_zaiko_tabs:F3",
+          "key": "F3",
+          "label": "伝票処理"
+        }
+      ]
+    },
+    {
+      "id": "m_zaiko_denpyo",
+      "title": "在庫メニュー > 伝票処理（F3）",
+      "path": "在庫メニュー タブF3",
+      "items": [
+        {
+          "ref": "m_zaiko_denpyo:F1",
+          "key": "F1",
+          "label": "伝票入力",
+          "pict": "images/m_sample_F2.png"
+        }
+      ]
+    }
+  ],
+  "screens": [
+    {
+      "screen": "患者登録",
+      "opened_from": "窓口 > F1 患者登録",
+      "メニューバー": "ファイル(F)、編集(E)",
+      "fkeys": [
+        {
+          "key": "F1",
+          "label": "新規"
+        },
+        {
+          "key": "F5",
+          "label": "検索"
+        },
+        {
+          "key": "F9",
+          "label": "取消"
+        },
+        {
+          "key": "F12",
+          "label": "登録"
+        }
+      ]
+    },
+    {
+      "screen": "伝票入力",
+      "opened_from": "在庫メニュー > F3 伝票処理 > F1 伝票入力",
+      "fkeys": [
+        {
+          "key": "F9",
+          "label": "取消"
+        },
+        {
+          "key": "F12",
+          "label": "登録"
+        }
+      ]
+    }
+  ]
+}

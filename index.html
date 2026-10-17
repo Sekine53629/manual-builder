@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual Builder</title>
+  <link rel="stylesheet" href="./src/styles/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">Manual Builder</h1>
+    <div class="project-bar">
+      <button id="open-root-button" type="button" title="プロジェクトを保存するフォルダを選びます">保存フォルダを開く</button>
+      <span id="root-name" class="root-name"></span>
+      <label class="inline-field"><span>プロジェクト</span>
+        <select id="project-select"></select>
+      </label>
+      <button id="new-project-button" type="button" disabled>新規プロジェクト</button>
+      <button id="reload-button" type="button" title="フォルダを読み直す" disabled>再読込</button>
+    </div>
+    <div class="header-actions">
+      <span id="save-status" class="save-status"></span>
+      <button id="print-button" type="button" disabled>印刷 / PDF</button>
+      <button id="export-button" type="button" class="primary" disabled>HTML を書き出す</button>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <aside class="side-pane">
+      <details class="pane-section" id="meta-section">
+        <summary>マニュアル情報</summary>
+        <div class="meta-grid">
+          <label class="field"><span>マニュアル名</span><input id="manual-title" type="text"></label>
+          <label class="field"><span>サブタイトル</span><input id="manual-subtitle" type="text" placeholder="表紙に表示（統合版）"></label>
+          <label class="field"><span>作成者</span><input id="manual-author" type="text"></label>
+          <label class="field field-inline"><span>版</span><input id="manual-version" type="text" size="6"></label>
+          <label class="field field-inline"><span>改定日</span><input id="manual-date" type="date"></label>
+          <label class="field"><span>表紙の補足（1 行 1 項目）</span><textarea id="manual-notes" rows="2"></textarea></label>
+          <label class="check"><input id="manual-book" type="checkbox"> 統合版として出力（表紙・全体目次・章バッジ）</label>
+          <label class="check"><input id="manual-autonumber" type="checkbox"> グループに「第N章」を並び順で自動採番</label>
+        </div>
+      </details>
+
+      <section class="pane-section">
+        <h2>章 <small id="chapter-count" class="count"></small></h2>
+        <ol id="chapter-list" class="chapter-list"></ol>
+        <datalist id="group-options"></datalist>
+        <div class="insert-row">
+          <button id="append-chapter-button" type="button" class="small" disabled>＋ 末尾に章を追加</button>
+        </div>
+        <div id="unused-files" class="unused-files"></div>
+        <p class="hint">章をクリックすると編集できます。「＋」でその章の直後に挿入、グループに同じ名前を入れた連続する章が 1 つの章（第N章）にまとまります。</p>
+      </section>
+
+      <section class="pane-section">
+        <h2>素材 <small id="asset-count" class="count"></small></h2>
+        <div id="drop-zone" class="drop-zone">
+          <p>.md / .json / .svg / .png / .txt をここにドロップ<br><small>プロジェクトフォルダの chapters / images / catalog に保存されます</small></p>
+          <label class="file-picker">ファイルを選択
+            <input id="file-input" type="file" accept=".md,.markdown,.json,.svg,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple disabled>
+          </label>
+        </div>
+        <p id="catalog-status" class="hint"></p>
+        <p class="hint">Markdown では <code>![説明](ファイル名.svg)</code> / <code>![説明](ファイル名.png)</code>、操作経路は <code>[[chips:m_tabs:F10, m_option1:F1]]</code> で参照します。</p>
+      </section>
+
+      <section class="pane-section">
+        <h2>メッセージ</h2>
+        <ul id="message-list" class="message-list"></ul>
+      </section>
+    </aside>
+
+    <main class="editor-area">
+      <div id="welcome" class="welcome">
+        <h2>プロジェクトの保存フォルダを開いてください</h2>
+        <p>マニュアルは「保存フォルダ」の中にプロジェクトごとのフォルダ（<code>manual.json</code> + <code>chapters/</code> + <code>images/</code> + <code>catalog/</code> + <code>output/</code>）として保存されます。
+          このリポジトリの <code>projects/</code> フォルダを選ぶと、サンプル（<code>sample</code>）が開けます。</p>
+        <p id="welcome-unsupported" class="warn" hidden>このブラウザはフォルダへの保存（File System Access API）に対応していません。Chrome または Edge で開いてください。</p>
+        <div class="welcome-actions">
+          <button id="welcome-open-button" type="button" class="primary">保存フォルダを開く</button>
+          <button id="welcome-reconnect-button" type="button" hidden>前回のフォルダに再接続</button>
+        </div>
+      </div>
+
+      <div id="editor" class="editor" hidden>
+        <div class="editor-toolbar">
+          <div class="seg" role="tablist" aria-label="コード表示の切り替え">
+            <button id="view-source-button" type="button" class="active" role="tab" aria-selected="true">Markdown</button>
+            <button id="view-html-button" type="button" role="tab" aria-selected="false">HTML</button>
+          </div>
+          <label class="check"><input id="toggle-preview" type="checkbox" checked> プレビュー</label>
+          <span class="sep"></span>
+          <label class="inline-field"><span>プレビュー</span>
+            <select id="preview-mode">
+              <option value="chapter">この章</option>
+              <option value="full">マニュアル全体</option>
+            </select>
+          </label>
+          <label class="check"><input id="sync-toggle" type="checkbox" checked> スクロール同期</label>
+          <span class="sep"></span>
+          <span id="current-file" class="current-file"></span>
+        </div>
+        <div class="panes">
+          <section id="source-pane" class="pane">
+            <div class="pane-title">ソース <span id="source-kind" class="kind-tag"></span></div>
+            <div id="source-editor" class="cm-host"></div>
+          </section>
+          <section id="html-pane" class="pane" hidden>
+            <div class="pane-title">HTML（生成結果・読み取り専用）</div>
+            <div id="html-editor" class="cm-host"></div>
+          </section>
+          <section id="preview-pane" class="pane">
+            <div class="pane-title">プレビュー</div>
+            <iframe id="preview" title="プレビュー" sandbox="allow-same-origin"></iframe>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <iframe id="print-frame" title="印刷用" sandbox="allow-same-origin allow-modals" hidden></iframe>
+
+  <dialog id="insert-dialog">
+    <form method="dialog" class="dialog-form">
+      <h3>章を挿入</h3>
+      <label class="field"><span>種類</span>
+        <select id="insert-kind">
+          <option value="markdown">新しい Markdown 原稿</option>
+          <option value="steps">新しい手順 JSON</option>
+          <option value="existing">chapters/ にある既存ファイル</option>
+        </select>
+      </label>
+      <label class="field" id="insert-file-field"><span>ファイル名（chapters/ 内）</span><input id="insert-file" type="text" placeholder="例: 10-new-chapter.md"></label>
+      <label class="field" id="insert-existing-field" hidden><span>ファイル</span><select id="insert-existing"></select></label>
+      <label class="field"><span>タイトル</span><input id="insert-title" type="text" placeholder="原稿の見出しになります"></label>
+      <label class="field"><span>グループ（第N章の名前）</span><input id="insert-group" type="text" list="group-options"></label>
+      <div class="dialog-actions">
+        <button type="button" id="insert-cancel">キャンセル</button>
+        <button type="submit" class="primary">挿入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="project-dialog">
+    <form method="dialog" class="dialog-form">
+      <h3>新規プロジェクト</h3>
+      <label class="field"><span>フォルダ名（半角英数字と - _）</span><input id="project-folder" type="text" pattern="[A-Za-z0-9_-]+" required placeholder="例: my-manual"></label>
+      <label class="field"><span>マニュアル名</span><input id="project-title" type="text" required placeholder="例: 店舗業務マニュアル"></label>
+      <div class="dialog-actions">
+        <button type="button" id="project-cancel">キャンセル</button>
+        <button type="submit" class="primary">作成</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
