@@ -391,12 +391,22 @@ function scheduleRebuild(): void {
   }, RENDER_DELAY_MS);
 }
 
+/** 組み立ての世代。古い組み立てが後から終わっても、新しい結果を上書きしないための番号 */
+let rebuildGeneration = 0;
+
 async function rebuild(): Promise<void> {
   if (!project || !manifest) {
     return;
   }
+  const generation = ++rebuildGeneration;
+  const target = project;
   try {
-    assembled = await assembleManual(manifest, project);
+    const result = await assembleManual(manifest, project);
+    // 待っている間にプロジェクトが切り替わった、または新しい組み立てが始まっていたら、この結果は捨てる
+    if (generation !== rebuildGeneration || target !== project) {
+      return;
+    }
+    assembled = result;
     reportWarnings(assembled.warnings);
     if (currentIndex >= manifest.chapters.length) {
       currentIndex = manifest.chapters.length - 1;
@@ -1818,6 +1828,7 @@ async function openProject(name: string): Promise<void> {
     await flushWrites();
     const dir = await root.getDirectoryHandle(name);
     editingPath = undefined;
+    assembled = undefined;
     project = new ProjectDir(dir, name);
     manifest = await project.readManifest();
     currentIndex = manifest.chapters.length > 0 ? 0 : -1;
